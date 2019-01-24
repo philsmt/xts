@@ -1,5 +1,5 @@
 
-from typing import Any, Callable, Dict, Generator, Iterable, List, \
+from typing import Any, Callable, Dict, Generator, Iterable, List, Mapping, \
                    Optional, Tuple, Union, BinaryIO
 
 from collections import OrderedDict as odict
@@ -201,11 +201,52 @@ class Run(TrainSet):
 
 
 class DataSource(object):
-    def walk_trains(target: TrainSet) -> Generator:
+    def walk_trains(self, target: TrainSet) -> Generator:
         raise NotImplementedError('walk_trains')
 
-    def walk_records(target: TrainSet) -> Generator:
+    def walk_records(self, target: TrainSet) -> Generator:
         raise NotImplementedError('walk_records')
+
+
+class ArrayData(DataSource):
+    def __init__(self, train_ids: Iterable[int], data: Iterable[Any]) -> None:
+        if len(train_ids) != len(data):
+            raise ValueError('arguments mismatch in their length')
+
+        self.train_ids = train_ids
+        self.index = dict(zip(train_ids, range(len(train_ids))))
+        self.data = data
+
+    def walk_trains(self, target: TrainSet) -> Generator:
+        for train_id in target:
+            try:
+                idx = self.index[train_id]
+            except KeyError:
+                yield None
+            else:
+                self.data[idx]
+
+    def walk_records(self, target: TrainSet) -> Generator:
+        for train_id in target:
+            if train_id in self.index:
+                yield train_id
+
+
+class MappedData(DataSource):
+    def __init__(self, data_map: Mapping[int, Any]) -> None:
+        self.data_map = data_map
+
+    def walk_trains(self, target: TrainSet) -> Generator:
+        for train_id in target:
+            try:
+                yield self.data_map[train_id]
+            except KeyError:
+                yield None
+
+    def walk_records(self, target: TrainSet) -> Generator:
+        for train_id in target:
+            if train_id in self.data_map:
+                yield train_id
 
 
 class IndexedData(DataSource):
