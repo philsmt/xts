@@ -125,7 +125,7 @@ class FlashProposal(FlashRoot):
             prefix = f'flashU_{proposal}'
 
         if packed_root is None:
-            packed_root = self.get_gpfs_root() + '/processed/xts_packed'
+            packed_root = self.get_gpfs_root() + '/scratch_cc/xts_packed'
 
             if not os.path.isdir(self.packed_root):
                 os.mkdir(self.packed_root)
