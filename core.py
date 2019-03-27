@@ -156,7 +156,7 @@ class Run(TrainSet):
                     root = getattr(rc, key)
                 except KeyError:
                     raise ValueError(
-                        f'data root \'{key}\' not defined by xtsrc'
+                        f'data root \'{key}\' not defined in environment'
                     ) from None
 
                 tid_sets.append(set(root.by_run(value)))
@@ -168,7 +168,7 @@ class Run(TrainSet):
 
             if len(args) > len(roots):
                 raise ValueError('insufficient number of data roots defined '
-                                 'by xtsrc')
+                                 'in environment')
 
             for root, value in zip(roots, args):
                 tid_sets.append(set(root.by_run(value)))
@@ -933,7 +933,8 @@ def resolve_data_source(val):
         try:
             ds = getattr(rc, val)
         except AttributeError:
-            raise ValueError(f'data source \'{val}\' not defined by xtsrc') \
+            raise ValueError(f'data source \'{val}\' not defined in current '
+                             f'environment') \
                 from None
     elif isinstance(val, DataSource):
         ds = val
