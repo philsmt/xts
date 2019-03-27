@@ -34,9 +34,7 @@ except ValueError:
 else:
     DEFAULT_PL_METHOD = 'processes'
 
-DEFAULT_PL_WORKER = 4
-
-rc = {}
+DEFAULT_PL_WORKER = multiprocessing.cpu_count() // 3
 
 
 class ShotId(int):
@@ -155,7 +153,7 @@ class Run(TrainSet):
         if kwargs:
             for key, value in kwargs.items():
                 try:
-                    root = rc[key]
+                    root = getattr(rc, key)
                 except KeyError:
                     raise ValueError(
                         f'data root \'{key}\' not defined by xtsrc'
@@ -165,7 +163,8 @@ class Run(TrainSet):
                 run_strs.append(f'{key}={value}')
 
         elif args:
-            roots = [dr for dr in rc.values() if isinstance(dr, DataRoot)]
+            roots = [dr for dr in rc.__dict__.values()
+                     if isinstance(dr, DataRoot)]
 
             if len(args) > len(roots):
                 raise ValueError('insufficient number of data roots defined '
@@ -285,7 +284,7 @@ class IndexedData(DataSource):
         raise NotImplementedError('get_source_id')
 
     def get_records_cursor(self, tid_list_str):
-        return dbc.execute(f'''
+        return index_dbc().execute(f'''
             SELECT train_id, file_id
             FROM {self.prefix}_records
             WHERE train_id IN ({tid_list_str})
@@ -294,6 +293,8 @@ class IndexedData(DataSource):
         ''')
 
     def get_file_generator(self, file_id, tid_list_str):
+        dbc = index_dbc()
+
         file_row = dbc.execute(f'''
             SELECT path
             FROM {self.prefix}_files
@@ -355,7 +356,7 @@ class IndexedData(DataSource):
                     pass
 
     def walk_records(self, target: TrainSet) -> Generator:
-        records_cursor = dbc.execute(f'''
+        records_cursor = index_dbc().execute(f'''
             SELECT train_id
             FROM {self.prefix}_records
             WHERE train_id IN ({target.to_sql_str()})
@@ -371,7 +372,7 @@ class IndexedData(DataSource):
 
         source_col, source_val = self.source_insert
 
-        dbc.executemany(f'''
+        index_dbc().executemany(f'''
             INSERT INTO {self.prefix}_records (
                 train_id, {source_col} file_id, position
             )
@@ -401,7 +402,7 @@ class PackedData(IndexedData):
         else:
             file_id_col = 'ifnull(packed_file_id, raw_file_id)'
 
-        return dbc.execute(f'''
+        return index_dbc().execute(f'''
             SELECT train_id, {file_id_col} AS file_id
             FROM {self.prefix}_records
             WHERE train_id IN ({tid_list_str})
@@ -410,6 +411,8 @@ class PackedData(IndexedData):
         ''')
 
     def get_file_generator(self, file_id, tid_list_str):
+        dbc = index_dbc()
+
         file_row = dbc.execute(f'''
             SELECT path, type
             FROM {self.prefix}_files
@@ -442,6 +445,7 @@ class PackedData(IndexedData):
                                         self.packed_root is not None,
                                         *args, **kwargs)
 
+        dbc = index_dbc()
         source_col, source_val = self.source_insert
 
         if self.packed_root is not None:
@@ -541,6 +545,8 @@ class HdfData(IndexedData):
         self.act_path = f'{self.group}/{self.dset}'
 
     def get_source_id(self):
+        dbc = index_dbc()
+
         source_row = dbc.execute(f'''
             SELECT source_id
             FROM {self.prefix}_sources
@@ -639,7 +645,7 @@ class IndexedRoot(DataRoot):
         # Assume aot indexing for now
         # It is here where we could index just-in-time
 
-        train_cursor = dbc.execute(f'''
+        train_cursor = index_dbc().execute(f'''
             SELECT train_id
             FROM {self.prefix}_trains
             WHERE run_id = {run_id}
@@ -648,6 +654,8 @@ class IndexedRoot(DataRoot):
         return [row['train_id'] for row in train_cursor]
 
     def register_file(self, path) -> int:
+        dbc = index_dbc()
+
         dbc.execute(f'''
             INSERT INTO {self.prefix}_files (path)
             VALUES ("{path}")
@@ -661,6 +669,8 @@ class IndexedRoot(DataRoot):
         return file_id
 
     def index_file(self, path) -> None:
+        dbc = index_dbc()
+
         file_row = dbc.execute(f'''
             SELECT file_id
             FROM {self.prefix}_files
@@ -699,7 +709,7 @@ class IndexedRoot(DataRoot):
         for path in glob.iglob(path):
             self.index_file(path)
 
-        dbc.commit()
+        index_dbc().commit()
 
 
 class PackedRoot(IndexedRoot):
@@ -719,6 +729,8 @@ class PackedRoot(IndexedRoot):
         return tables
 
     def register_file(self, path, type_='raw') -> int:
+        dbc = index_dbc()
+
         dbc.execute(f'''
             INSERT INTO {self.prefix}_files (path, type)
             VALUES ("{path}", "{type_}")
@@ -730,6 +742,32 @@ class PackedRoot(IndexedRoot):
         ''').fetchone()[0]
 
         return file_id
+
+
+class Environment(object):
+    def __call__(self, path: str = '.'):
+        if os.path.isdir(path):
+            path = os.path.join(path, '.xtsrc.py')
+
+        module_name = os.path.basename(path)[:path.rfind('.')]
+
+        if module_name == '.xtsrc':
+            module_name = '__hidden_xtsrc__'
+
+        try:
+            rc_mod = importlib.util.spec_from_file_location(
+                'xts.rc.' + module_name, path
+            ).loader.load_module()
+        except ImportError:
+            return
+
+        else:
+            for key in dir(rc_mod):
+                value = getattr(rc_mod, key)
+
+                if isinstance(value, DataRoot) or \
+                        isinstance(value, DataSource):
+                    setattr(self, key, value)
 
 
 def parallelized(func: Callable):
@@ -859,9 +897,8 @@ def _worker_process_init(id_queue: multiprocessing.Queue,
     _worker_kwargs = kwargs
     _kernel = kernel
 
-    global dbc
-    dbc = sqlite3.connect(_INDEX_DATABASE_PATH, timeout=20)
-    dbc.row_factory = sqlite3.Row
+    global _INDEX_DATABASE_CONN
+    del _INDEX_DATABASE_CONN
 
 
 def _worker_process_run(target: TrainSet):
@@ -894,7 +931,7 @@ def map_kernel_by_train(kernel: TrainKernel, target: TrainSet, *data_sources,
 def resolve_data_source(val):
     if isinstance(val, str):
         try:
-            ds = rc[val]
+            ds = getattr(rc, val)
         except AttributeError:
             raise ValueError(f'data source \'{val}\' not defined by xtsrc') \
                 from None
@@ -948,29 +985,6 @@ def index_opts(strategy: str = 'jit',
     _INDEX_DATABASE_PATH = path
 
 
-def load_rc(path):
-    global rc
-
-    module_name = os.path.basename(path)[:path.rfind('.')]
-
-    if module_name == '.xtsrc':
-        module_name = '__main__'
-
-    try:
-        rc_mod = importlib.util.spec_from_file_location(
-            'xts.rc.' + module_name, path
-        ).loader.load_module()
-    except ImportError:
-        return
-
-    else:
-        for key in dir(rc_mod):
-            value = getattr(rc_mod, key)
-
-            if isinstance(value, DataRoot) or isinstance(value, DataSource):
-                rc[key] = value
-
-
 def build_schema_sql(tables, prefix):
     sql = ''
 
@@ -996,29 +1010,40 @@ def build_schema_sql(tables, prefix):
     return sql
 
 
-def connect_index():
-    global dbc
-    dbc = sqlite3.connect(_INDEX_DATABASE_PATH, check_same_thread=False)
-    dbc.row_factory = sqlite3.Row
+def index_dbc():
+    global _INDEX_DATABASE_CONN
 
-    for type_ in [numpy.int8, numpy.uint8, numpy.int16, numpy.uint16,
-                  numpy.int32, numpy.uint32, numpy.int64, numpy.uint64]:
-        sqlite3.register_adapter(type_, int)
+    try:
+        return _INDEX_DATABASE_CONN
+    except NameError:
+        dbc = sqlite3.connect(_INDEX_DATABASE_PATH, check_same_thread=False)
+        dbc.row_factory = sqlite3.Row
 
-    for type_ in [numpy.float32, numpy.float64]:
-        sqlite3.register_adapter(type_, float)
+        for type_ in [numpy.int8, numpy.uint8, numpy.int16, numpy.uint16,
+                    numpy.int32, numpy.uint32, numpy.int64, numpy.uint64]:
+            sqlite3.register_adapter(type_, int)
 
-    dbc.execute('PRAGMA journal_mode=WAL')
+        for type_ in [numpy.float32, numpy.float64]:
+            sqlite3.register_adapter(type_, float)
 
-    for root in [dr for dr in rc.values() if isinstance(dr, DataRoot)]:
-        tables = root.schema()
+        dbc.execute('PRAGMA journal_mode=WAL')
 
-        if tables is None:
-            continue
+        for root in [dr for dr in rc.__dict__.values()
+                     if isinstance(dr, DataRoot)]:
+            tables = root.schema()
 
-        dbc.executescript(build_schema_sql(tables, root.prefix))
+            if tables is None:
+                continue
 
-    dbc.commit()
+            dbc.executescript(build_schema_sql(tables, root.prefix))
 
-    global _initialized
-    _initialized = True
+        dbc.commit()
+
+        global _initialized
+        _initialized = True
+        _INDEX_DATABASE_CONN = dbc
+
+        return dbc
+
+
+rc = Environment()
