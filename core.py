@@ -704,9 +704,12 @@ class IndexedRoot(DataRoot):
 
         index_gen = self.generate_index(path)
 
-        train_ids, times, ds_kwargs = next(index_gen)
+        try:
+            train_ids, times, data_sources, ds_kwargs = next(index_gen)
+        except StopIteration:
+            return
 
-        for ds in self.get_indexed_ds():
+        for ds in data_sources:
             ds.index(file_id, **ds_kwargs)
 
         if times is not None:

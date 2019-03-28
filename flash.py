@@ -82,9 +82,6 @@ class FlashRoot(PackedRoot):
     def get_packed_root(self) -> str:
         return self.packed_root
 
-    def get_indexed_ds(self):
-        return self.data_sources
-
     def get_timing_dset(self) -> str:
         return f'Timing/time stamp/{self.user}'
 
@@ -100,7 +97,7 @@ class FlashRoot(PackedRoot):
         with h5py.File(path, 'r') as h5f:
             timing = numpy.asarray(h5f[self.get_timing_dset()])
 
-            yield timing[:, 2], timing[:, 0], \
+            yield timing[:, 2], timing[:, 0], self.data_sources, \
                 dict(h5f=h5f, timing_train_ids=timing[:, 2])
 
 

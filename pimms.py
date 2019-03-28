@@ -91,13 +91,11 @@ class PimmsRoot(IndexedRoot):
                 final_tids.append(train_id)
                 final_pos.append(pos)
 
-        yield final_tids, None, dict(train_ids=final_tids, pos=final_pos)
+        yield final_tids, None, [self._data], dict(train_ids=final_tids,
+                                                   pos=final_pos)
 
     def get_run_from_path(self, path):
         return int(os.path.basename(path)[:3])
-
-    def get_indexed_ds(self):
-        yield self._data
 
     def index_path(self, path: Optional[str] = None) -> None:
         if path is None:
