@@ -59,7 +59,7 @@ class EuXfelRoot(IndexedRoot):
 
 class EuXfelProposal(EuXfelRoot):
     def __init__(self, instrument: str, cycle: int, proposal: int,
-                 prefix: Optional[str]) -> None:
+                 prefix: Optional[str] = None) -> None:
         self.instrument = instrument
         self.cycle = cycle
         self.proposal = proposal
@@ -82,7 +82,7 @@ class EuXfelProposal(EuXfelRoot):
 
     def get_gpfs_root(self) -> str:
         return f'/gpfs/exfel/exp/{self.instrument}/{self.cycle}' \
-               f'/p{self.proposal:06d}/raw'
+               f'/p{self.proposal:06d}'
 
     def index_path(self, path: Optional[str] = None) -> None:
         if path is None:
