@@ -587,6 +587,7 @@ class HdfData(IndexedData):
         return source_row[0]
 
     def generate_packed_name(self, raw_file_id, *args, **kwargs):
+        yield self.prefix.encode('ascii')
         yield raw_file_id.to_bytes(4, 'little')
         yield self.act_path.encode('ascii')
 
