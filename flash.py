@@ -127,8 +127,10 @@ class FlashProposal(FlashRoot):
         if packed_root is None:
             packed_root = self.get_gpfs_root() + '/scratch_cc/xts_packed'
 
-            if not os.path.isdir(self.packed_root):
-                os.mkdir(self.packed_root)
+            if not os.path.isdir(packed_root):
+                os.mkdir(packed_root)
+
+        self.packed_root = packed_root
 
         super().__init__(prefix, user, packed_root)
 
