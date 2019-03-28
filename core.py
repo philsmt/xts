@@ -505,7 +505,13 @@ class PackedData(IndexedData):
 
 
 class PackedArrayData(PackedData):
+    HEADER_MAGIC = b'XTSPAK-ARRAY'
+    FORMAT_VERSION = 1
+
     def write_packed_header(self, fp: BinaryIO, data: numpy.ndarray):
+        fp.write(PackedArrayData.HEADER_MAGIC)
+        fp.write(PackedArrayData.FORMAT_VERSION.to_bytes(4, 'little'))
+
         type_str = data.dtype.str.encode('ascii')
         fp.write(type_str)
         fp.write(b'\x00' * (4 - len(type_str)))
@@ -521,6 +527,15 @@ class PackedArrayData(PackedData):
         return offset
 
     def read_packed_header(self, fp: BinaryIO):
+        if fp.read(len(PackedArrayData.HEADER_MAGIC)) != \
+                PackedArrayData.HEADER_MAGIC:
+            raise ValueError('unknown file format')
+
+        version = int.from_bytes(fp.read(4), 'little')
+
+        if version > PackedArrayData.FORMAT_VERSION:
+            raise ValueError('incompatible file format')
+
         self._dtype = numpy.dtype(fp.read(4).rstrip(b'\x00'))
         self._rank = fp.read(1)[0]
 
