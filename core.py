@@ -373,7 +373,7 @@ class IndexedData(DataSource):
         source_col, source_val = self.source_insert
 
         index_dbc().executemany(f'''
-            INSERT INTO {self.prefix}_records (
+            INSERT OR IGNORE INTO {self.prefix}_records (
                 train_id, {source_col} file_id, position
             )
             VALUES (?, {source_val} {raw_file_id}, ?)
@@ -494,7 +494,7 @@ class PackedData(IndexedData):
                     packed_pos.append(self.write_packed_entry(fp, data))
 
             dbc.executemany(f'''
-                INSERT INTO {self.prefix}_records (
+                INSERT OR IGNORE INTO {self.prefix}_records (
                     train_id, {source_col} raw_file_id, raw_position,
                     packed_file_id, packed_position
                 )
@@ -502,7 +502,7 @@ class PackedData(IndexedData):
             ''', zip(train_ids, raw_pos, packed_pos))
         else:
             dbc.executemany(f'''
-                INSERT INTO {self.prefix}_records (
+                INSERT OR IGNORE INTO {self.prefix}_records (
                     train_id, {source_col} raw_file_id, raw_position
                 )
                 VALUES (?, {source_val} {raw_file_id}, ?)
