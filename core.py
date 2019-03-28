@@ -133,7 +133,7 @@ class TrainRange(TrainSet):
                     else '1'
 
         super().__init__([res['train_id'] for res in
-                          dbc.execute(f'''
+                          index_dbc().execute(f'''
                               SELECT train_id
                               FROM trains
                               WHERE {where_str}
