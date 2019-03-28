@@ -31,6 +31,9 @@ class FlashHdfData(PackedArrayData, HdfData):
         except KeyError:
             return
         else:
+            if len(validate_h5d.shape) > 1 and validate_h5d.shape[1] > 1:
+                raise ValueError('validation dataset has too many dimensions')
+
             validate_data = numpy.asarray(validate_h5d).flatten()
 
         if numpy.issubdtype(validate_data.dtype, numpy.floating):
