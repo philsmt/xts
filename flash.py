@@ -86,7 +86,7 @@ class FlashRoot(PackedRoot):
     def get_timing_dset(self) -> str:
         return f'Timing/time stamp/{self.user}'
 
-    def hdf(self, group, dset, overlap_suffix='.sec',
+    def hdf(self, group, dset, overlap_suffix='',
             packed=False) -> FlashHdfData:
         ds = FlashHdfData(self.prefix, group, dset, overlap_suffix,
                           self.get_packed_root() if packed else None)
