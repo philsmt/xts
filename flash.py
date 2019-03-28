@@ -77,7 +77,7 @@ class FlashRoot(PackedRoot):
         if run_pos == -1 or file_pos == -1:
             raise ValueError('invalid flash filename')
 
-        return basename[run_pos+3:file_pos-1]
+        return int(basename[run_pos+3:file_pos-1])
 
     def get_packed_root(self) -> str:
         return self.packed_root

@@ -1043,7 +1043,7 @@ def index_dbc():
         dbc.row_factory = sqlite3.Row
 
         for type_ in [numpy.int8, numpy.uint8, numpy.int16, numpy.uint16,
-                    numpy.int32, numpy.uint32, numpy.int64, numpy.uint64]:
+                      numpy.int32, numpy.uint32, numpy.int64, numpy.uint64]:
             sqlite3.register_adapter(type_, int)
 
         for type_ in [numpy.float32, numpy.float64]:
