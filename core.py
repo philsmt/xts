@@ -557,12 +557,10 @@ class PackedArrayData(PackedData):
 
 
 class HdfData(IndexedData):
-    def __init__(self, prefix, group, dset):
+    def __init__(self, prefix, hdf_path):
         super().__init__(prefix)
 
-        self.group = group
-        self.dset = dset
-        self.act_path = f'{self.group}/{self.dset}'
+        self.hdf_path = hdf_path
 
     def get_source_id(self):
         dbc = index_dbc()
@@ -570,13 +568,13 @@ class HdfData(IndexedData):
         source_row = dbc.execute(f'''
             SELECT source_id
             FROM {self.prefix}_sources
-            WHERE name = "{self.act_path}"
+            WHERE name = "{self.hdf_path}"
         ''').fetchone()
 
         if source_row is None:
             dbc.execute(f'''
                 INSERT INTO {self.prefix}_sources (name)
-                VALUES ("{self.act_path}")
+                VALUES ("{self.hdf_path}")
             ''')
 
             source_row = dbc.execute(f'''
@@ -589,11 +587,11 @@ class HdfData(IndexedData):
     def generate_packed_name(self, raw_file_id, *args, **kwargs):
         yield self.prefix.encode('ascii')
         yield raw_file_id.to_bytes(4, 'little')
-        yield self.act_path.encode('ascii')
+        yield self.hdf_path.encode('ascii')
 
     def walk_file(self, path, positions):
         with h5py.File(path, 'r') as h5f:
-            data = numpy.array(h5f[self.act_path])
+            data = numpy.array(h5f[self.hdf_path])
 
             for pos in positions:
                 yield data[pos]

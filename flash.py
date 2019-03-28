@@ -16,10 +16,9 @@ class FlashHdfData(PackedArrayData, HdfData):
 
     def __init__(self, prefix, group, dset_act, dset_validate,
                  packed_root=None):
-        super().__init__(prefix, group, dset_act)
+        super().__init__(prefix, f'{group}/{dset_act}')
 
-        self.validate_path = '{0}/{1}{2}'.format(group, dset_act,
-                                                 dset_validate)
+        self.validate_path = f'{group}/{dset_act}{dset_validate}'
         self.packed_root = packed_root
 
     # h5f, timing_train_ids should be keyword arguments, this generator
