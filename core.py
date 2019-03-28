@@ -480,8 +480,13 @@ class PackedData(IndexedData):
             raw_pos = []
             packed_pos = []
 
+            try:
+                header_args = next(index_gen)
+            except StopIteration:
+                return
+
             with open(packed_path, 'wb') as fp:
-                self.write_packed_header(fp, *next(index_gen))
+                self.write_packed_header(fp, *header_args)
 
                 for train_id, pos, data in index_gen:
                     train_ids.append(train_id)
