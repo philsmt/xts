@@ -78,7 +78,7 @@ class EuXfelProposal(EuXfelRoot):
                      '(\d{6,6})/p(\d{6,6})', path)
 
         if m is not None:
-            instrument, cycle_str, proposal_str = m.groups()
+            _, instrument, cycle_str, proposal_str = m.groups()
             return cls(instrument, int(cycle_str), int(proposal_str))
 
     def get_gpfs_root(self) -> str:
