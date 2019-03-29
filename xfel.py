@@ -74,7 +74,8 @@ class EuXfelProposal(EuXfelRoot):
         if path is None:
             path = os.path.realpath(os.getcwd())
 
-        m = re.match('/gpfs/exfel/exp/(\w{3,6})/(\d{6,6})/p(\d{6,6})', path)
+        m = re.match('/gpfs/exfel/(exp|d/raw|u/scratch|u/usr)/(\w{3,6})/'
+                     '(\d{6,6})/p(\d{6,6})', path)
 
         if m is not None:
             instrument, cycle_str, proposal_str = m.groups()
