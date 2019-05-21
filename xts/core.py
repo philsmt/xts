@@ -77,7 +77,7 @@ class TrainSet(object):
         return TrainSet(sorted(list(set(self.train_ids + y.train_ids))))
 
     def __getitem__(self, index):
-        return self.train_ids[index]
+        return TrainSet(self.train_ids[index])
 
     def split(self, num):
         return [TrainSet(x) for x in numpy.array_split(self.train_ids, num)]
