@@ -625,7 +625,8 @@ class IndexedRoot(DataRoot):
             trains=odict(
                 train_id='INTEGER PRIMARY KEY NOT NULL',
                 run_id='INTEGER NOT NULL',
-                time='INTEGER NULL'
+                time='INTEGER NULL',
+                __indices__={'run': ['run_id']}
             ),
 
             records=odict(
@@ -1028,7 +1029,18 @@ def build_schema_sql(tables, prefix):
             col_sql.append(f'\tPRIMARY KEY({", ".join(primary_key)})')
 
         sql += ',\n'.join(col_sql)
-        sql += '\n);\n\n'
+        sql += '\n);\n'
+
+        try:
+            indices = table_def['__indices__']
+        except KeyError:
+            pass
+        else:
+            for index_name, index_columns in indices.items():
+                sql += f'CREATE INDEX IF NOT EXISTS {prefix}_{table_name}_{index_name} ' \
+                       f'ON {prefix}_{table_name} ({", ".join(index_columns)});\n'
+
+        sql += '\n'
 
     return sql
 
