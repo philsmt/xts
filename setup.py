@@ -12,7 +12,8 @@ setup(
     description = ('An extendable toolkit for data analysis of single-shot data, e.g. at FEL experiments'),
     license = 'GPL',
     packages = ['xts',],
-    long_description = read('README'),
+    long_description = read('README.md'),
+    long_description_content_type='text/markdown',
     python_requires = '>=3.6',
     classifiers = [
         'Topic :: Scientific/Engineering :: Physics',
