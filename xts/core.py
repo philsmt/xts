@@ -182,7 +182,7 @@ class Run(TrainSet):
         if kwargs:
             for key, value in kwargs.items():
                 try:
-                    root = getattr(rc, key)
+                    root = getattr(env, key)
                 except KeyError:
                     raise ValueError(
                         f'data root \'{key}\' not defined in environment'
@@ -192,7 +192,7 @@ class Run(TrainSet):
                 run_strs.append(f'{key}={value}')
 
         elif args:
-            roots = [dr for dr in rc.__dict__.values()
+            roots = [dr for dr in env.__dict__.values()
                      if isinstance(dr, DataRoot)]
 
             if len(args) > len(roots):
@@ -815,29 +815,33 @@ class PackedRoot(IndexedRoot):
 
 
 class Environment(object):
-    def __call__(self, path: str = '.'):
-        if os.path.isdir(path):
-            path = os.path.join(path, '.xtsrc.py')
+    def __call__(self, path: str = None, **kwargs):
+        if path is not None:
+            if os.path.isdir(path):
+                path = os.path.join(path, '.xtsenv.py')
 
-        module_name = os.path.basename(path)[:path.rfind('.')]
+            module_name = os.path.basename(path)[:path.rfind('.')]
 
-        if module_name == '.xtsrc':
-            module_name = '__hidden_xtsrc__'
+            if module_name == '.xtsenv':
+                module_name = '__hidden_xtsenv__'
 
-        try:
-            rc_mod = importlib.util.spec_from_file_location(
-                'xts.rc.' + module_name, path
-            ).loader.load_module()
-        except ImportError:
-            return
+            try:
+                env_mod = importlib.util.spec_from_file_location(
+                    'xts.env.' + module_name, path
+                ).loader.load_module()
+            except ImportError:
+                return
 
-        else:
-            for key in dir(rc_mod):
-                value = getattr(rc_mod, key)
+            else:
+                for key in dir(env_mod):
+                    value = getattr(env_mod, key)
 
-                if isinstance(value, DataRoot) or \
-                        isinstance(value, DataSource):
-                    setattr(self, key, value)
+                    if isinstance(value, DataRoot) or \
+                            isinstance(value, DataSource):
+                        setattr(self, key, value)
+
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
 
 def parallelized(func: Callable):
@@ -1003,7 +1007,7 @@ def map_kernel_by_train(kernel: TrainKernel, target: TrainSet, *data_sources,
 def resolve_data_source(val) -> DataSource:
     if isinstance(val, str):
         try:
-            ds = getattr(rc, val)
+            ds = getattr(env, val)
         except AttributeError:
             raise ValueError(f'data source \'{val}\' not defined in current '
                              f'environment') \
@@ -1116,7 +1120,7 @@ def index_dbc():
 
         dbc.execute('PRAGMA journal_mode=WAL')
 
-        for root in [dr for dr in rc.__dict__.values()
+        for root in [dr for dr in env.__dict__.values()
                      if isinstance(dr, DataRoot)]:
             tables = root.schema()
 
@@ -1134,4 +1138,4 @@ def index_dbc():
         return dbc
 
 
-rc = Environment()
+env = Environment()
