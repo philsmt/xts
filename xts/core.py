@@ -119,6 +119,31 @@ class TrainSet(object):
 
         return TrainSet(tid_set)
 
+    def map_data(self, *ds: 'DataSource', **kwargs) -> Tuple[numpy.ndarray]:
+        shapes = dtypes = None
+
+        def shape_kernel(wid, tid, *data):
+            nonlocal shapes, dtypes
+            shapes = [d.shape for d in data]
+            dtypes = [d.dtype for d in data]
+
+        self[:1].map_trains(shape_kernel, *ds, **kwargs)
+
+        tid_map = self.get_index_map()
+        arrays = [alloc_array((len(self), *shapes[i]), dtypes[i], per_worker=False, **kwargs)
+                  for i in range(len(ds))]
+
+        def fill_kernel(wid, tid, *data):
+            tid_idx = tid_map[tid]
+
+            for i, d in enumerate(data):
+                if d is not None:
+                    arrays[i][tid_idx] = d
+
+        self.map_trains(fill_kernel, *ds, **kwargs)
+
+        return tuple(arrays)
+
 
 class TrainRange(TrainSet):
     def __init__(self, min_tid=None, max_tid=None, inclusive=True):
