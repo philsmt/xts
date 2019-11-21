@@ -90,6 +90,10 @@ class TrainSet(object):
 
     def map_trains(self, kernel: TrainKernel, *ds: 'DataSource',
                    **kwargs) -> None:
+
+        for val in ds:
+            resolve_data_source(val).index_trains(self)
+
         map_kernel_by_train(kernel, self, *ds, **kwargs)
 
     def select_trains(self, kernel: TrainKernel, *ds: 'DataSource',
@@ -98,10 +102,10 @@ class TrainSet(object):
                                   **kwargs)
         tid_map = self.get_index_map()
 
-        def mask_kernel(wid, bid, *data):
-            result_mask[tid_map[bid]] = kernel(wid, bid, *data)
+        def mask_kernel(wid, tid, *data):
+            result_mask[tid_map[tid]] = kernel(wid, tid, *data)
 
-        map_kernel_by_train(mask_kernel, self, *ds, **kwargs)
+        self.map_trains(mask_kernel, *ds, **kwargs)
 
         return TrainSet(list(numpy.array(self.train_ids)[result_mask]))
 
@@ -200,10 +204,28 @@ class Run(TrainSet):
 
 
 class DataSource(object):
+    def index_trains(self, target: TrainSet) -> None:
+        '''
+        Index this data source for a TrainSet.
+
+        This method gives the DataSource a chance to build an index, typically
+        prior to a mapping operation. It is not required and may be skipped.
+
+        DO NOT build an index in any method of the walk_ family! They are run
+        in parallel any will run into race conditions when writing to the index
+        database.
+        '''
+
+        pass
+
     def walk_trains(self, target: TrainSet) -> Generator:
+        # Walk actual data
+
         raise NotImplementedError('walk_trains')
 
     def walk_records(self, target: TrainSet) -> Generator:
+        # Walk existing records, i.e. train IDs with data.
+
         raise NotImplementedError('walk_records')
 
 
