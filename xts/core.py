@@ -1040,14 +1040,14 @@ def get_data_generators(target: TrainSet, data_sources, kwargs) -> List[Generato
     return gens
 
 
-def index_opts(strategy: str = 'jit',
-               path: Union[str, DataRoot, None] = _INDEX_DATABASE_PATH):
+def index_opts(strategy: str = 'aot',
+               path: Union[str, DataRoot, None] = _INDEX_DATABASE_PATH) -> None:
     try:
         _initialized
     except NameError:
         pass
     else:
-        raise RuntimeError('xts is already initialized')
+        print('WARNING: xts is already initialized, index_opts ignored')
 
     # if strategy not in ('aot', 'jit'):
     if strategy not in ('aot'):
