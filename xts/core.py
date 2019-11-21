@@ -972,8 +972,11 @@ def _worker_process_init(id_queue: multiprocessing.Queue,
     _worker_kwargs = kwargs
     _kernel = kernel
 
-    global _INDEX_DATABASE_CONN
-    del _INDEX_DATABASE_CONN
+    try:
+        global _INDEX_DATABASE_CONN
+        del _INDEX_DATABASE_CONN
+    except NameError:
+        pass
 
 
 def _worker_process_run(target: TrainSet) -> None:
