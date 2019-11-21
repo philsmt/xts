@@ -865,7 +865,7 @@ def parallelized(func: Callable):
     return parallelized_func
 
 
-def get_pl_worker(kwargs: Dict[str, Any], default: Optional[str] = None):
+def get_pl_worker(kwargs: Dict[str, Any], default: Optional[str] = None) -> int:
     try:
         pl_worker = int(kwargs['pl_worker'])
     except KeyError:
@@ -883,7 +883,7 @@ def get_pl_worker(kwargs: Dict[str, Any], default: Optional[str] = None):
     return pl_worker
 
 
-def get_pl_method(kwargs: Dict[str, Any], default: Optional[str] = None):
+def get_pl_method(kwargs: Dict[str, Any], default: Optional[str] = None) -> str:
     try:
         pl_method = kwargs['pl_method']
     except KeyError:
@@ -902,12 +902,12 @@ def get_pl_method(kwargs: Dict[str, Any], default: Optional[str] = None):
 
 
 def get_pl_env(kwargs: Dict[str, Any], pl_worker: Optional[str] = None,
-               pl_method: Optional[str] = None):
+               pl_method: Optional[str] = None) -> Tuple[int, str]:
     return get_pl_worker(kwargs, pl_worker), get_pl_method(kwargs, pl_method)
 
 
 def alloc_array(shape: Tuple[int], dtype: numpy.dtype,
-                per_worker: bool = False, **kwargs):
+                per_worker: bool = False, **kwargs) -> numpy.ndarray:
     pl_method = get_pl_method(kwargs)
 
     if per_worker:
@@ -946,14 +946,14 @@ def _worker_process_init(id_queue: multiprocessing.Queue,
     del _INDEX_DATABASE_CONN
 
 
-def _worker_process_run(target: TrainSet):
+def _worker_process_run(target: TrainSet) -> None:
     _worker_func(_kernel, target, *_worker_args,
                  worker_id=_worker_id, **_worker_kwargs)
 
 
 def _worker_thread_init(id_queue: queue.Queue,
                         func: MapFunc, kernel: TrainKernel,
-                        args: Tuple[Any, ...], kwargs: Dict[str, Any]):
+                        args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
     global _worker_id_map
     _worker_id_map[threading.get_ident()] = id_queue.get()
 
@@ -966,14 +966,16 @@ def _worker_thread_run(target: TrainSet):
 
 @parallelized
 def map_kernel_by_train(kernel: TrainKernel, target: TrainSet, *data_sources,
-                        worker_id=0, **kwargs):
+                        worker_id=0, **kwargs) -> None:
+    # DO NOT CALL DIRECTLY! The data generators need to be prepared!
+
     ds_gens = get_data_generators(target, data_sources, kwargs)
 
     for train_id, *ds_data in zip(target, *ds_gens):
         kernel(worker_id, train_id, *ds_data)
 
 
-def resolve_data_source(val):
+def resolve_data_source(val) -> DataSource:
     if isinstance(val, str):
         try:
             ds = getattr(rc, val)
@@ -989,7 +991,7 @@ def resolve_data_source(val):
     return ds
 
 
-def get_data_generators(target: TrainSet, data_sources, kwargs):
+def get_data_generators(target: TrainSet, data_sources, kwargs) -> List[Generator]:
     gens = []
 
     for val in data_sources:
@@ -1031,7 +1033,11 @@ def index_opts(strategy: str = 'jit',
     _INDEX_DATABASE_PATH = path
 
 
-def build_schema_sql(tables, prefix):
+def get_index_path():
+    return _INDEX_DATABASE_PATH
+
+
+def build_schema_sql(tables, prefix) -> str:
     sql = ''
 
     for table_name, table_def in tables.items():
