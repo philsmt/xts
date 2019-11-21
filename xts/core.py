@@ -851,9 +851,10 @@ def parallelized(func: Callable):
             raise ValueError('worker_id may not be used as a keyword '
                              'argument for parallelized functions')
 
-        pl_worker = get_pl_worker(kwargs)
+        pl_worker = min(get_pl_worker(kwargs), len(target))
         pl_method = get_pl_method(kwargs)
 
+        # TODO: This check only makes sense for synchronous execution.
         if pl_worker == 1:
             func(kernel, target, *args, worker_id=0, **kwargs)
             return
