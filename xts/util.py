@@ -23,15 +23,17 @@ class timing(object):
             timing.pp(self.name, self.start, self.end)
 
     @staticmethod
-    def pp(title: str, start: float, end: float) -> None:
-        dt = end - start
+    def pp(title: str, start: float, end: float = None) -> None:
+        dt = end - start if end is not None else start
 
-        if dt < 1:
+        if dt < 1e-3:
+            time_str = '{0:.3f}μs'.format(dt*1000000)
+        elif dt < 1:
             time_str = '{0:.3f}ms'.format(dt*1000)
         else:
             time_str = '{0:.3f}s'.format(dt)
 
-        print('T', title, time_str, flush=True)
+        print('⏱', title, time_str, flush=True)
 
     @staticmethod
     def call(func: Callable) -> Callable:
