@@ -270,7 +270,7 @@ class ArrayData(DataSource):
             except KeyError:
                 yield None
             else:
-                self.data[idx]
+                yield self.data[idx]
 
     def walk_records(self, target: TrainSet) -> Generator:
         for train_id in target:
