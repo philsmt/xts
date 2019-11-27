@@ -1,6 +1,6 @@
 
-from typing import Any, Callable, Dict, Generator, Iterable, List, Mapping, \
-                   Optional, Tuple, Union, BinaryIO
+from typing import Any, Callable, Dict, Generator, Iterable, Iterator, \
+                   List, Mapping, Optional, Tuple, Union, BinaryIO
 
 from collections import OrderedDict as odict
 import glob
@@ -180,7 +180,7 @@ class TrainSet(object):
 
         map_kernel_by_train(kernel, self, *ds, **kwargs)
 
-    def iterate_trains(self, *ds: 'DataSource', **kwargs) -> Iterator[int, ...]:
+    def iterate_trains(self, *ds: 'DataSource', **kwargs) -> Iterator[Tuple[int, ...]]:
         for _ds in ds:
             resolve_data_source(_ds).index_trains(self)
 
