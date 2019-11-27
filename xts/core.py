@@ -37,6 +37,16 @@ else:
 DEFAULT_PL_WORKER = multiprocessing.cpu_count() // 3
 
 
+class _IndexConstructable(type):
+    def __getitem__(self, item):
+        return self(item)
+
+
+class ordered(metaclass=_IndexConstructable):
+    def __init__(self, index):
+        self.index = index
+
+
 class ShotId(int):
     pass
 
@@ -192,6 +202,31 @@ class TrainSet(object):
 
         return TrainSet(list(numpy.array(self.train_ids)[result_mask]))
 
+    def order_trains(self, kernel, *ds: 'DataSource', pos_dtype: numpy.dtype = numpy.float64,
+                     pos_shape: Tuple[int] = tuple(), **kwargs) -> 'OrderedTrainSet':
+        """
+        kernel may be None for exactly one DataSource
+        """
+
+        positions = alloc_array((len(self.train_ids), *pos_shape), dtype=pos_dtype, **kwargs)
+        tid_map = self.get_index_map()
+
+        if kernel is None:
+            if len(ds) != 1:
+                raise ValueError('implicit kernel definition only supported for exactly one data source')
+
+            def kernel(wid, tid, value):
+                return value
+
+        def order_kernel(wid, tid, *data):
+            positions[tid_map[tid]] = kernel(wid, tid, *data)
+
+        self.map_trains(order_kernel, *ds, **kwargs)
+
+        sorted_indices = numpy.argsort(positions)
+
+        return OrderedTrainSet(numpy.array(self.train_ids)[sorted_indices])
+
     def load_trains(self, *ds: 'DataSource', **kwargs) -> Tuple[numpy.ndarray]:
         shapes, dtypes = self.peek_format(*ds)
 
@@ -224,6 +259,84 @@ class TrainSet(object):
         self.map_trains(average_kernel, *ds, **kwargs)
 
         return [x.sum(axis=0) / len(self) for x in arrays]
+
+
+class OrderedTrainSet(TrainSet):
+    # A special version of TrainSet that allows to store train IDs in
+    # a custom order. However, as this class still inherits from TrainSet,
+    # it is important to preserve the semantics of TrainSet of numerically
+    # sorted IDs! This is realized by keeping the "ordered" (i.e. custom
+    # order) and "sorted" (i.e. numerically) lists separately. Set
+    # operations are not supported for this class and a custom index
+    # expression is provided for indexing into the ordered train IDs.
+
+    def __init__(self, train_ids: Iterable[int]):
+        self._ordered_train_ids = list(train_ids)
+        self._sorted_train_ids = None
+
+    def __str__(self):
+        if len(self.train_ids) == 0:
+            return 'OrderedTrainSet(empty)'
+        else:
+            return f'OrderedTrainSet({len(self._ordered_train_ids)} in ' \
+                   f'[{min(self._ordered_train_ids)}, {max(self._ordered_train_ids)}])'
+
+    def __repr__(self):
+        return f'TrainSet({self._ordered_train_ids})'
+
+    def __len__(self):
+        """Return the number of trains in this TrainSet."""
+
+        return len(self._ordered_train_ids)
+
+    def __and__(self, y):
+        raise NotImplementedError('unsupported operation for OrderedTrainSet')
+
+    def __or__(self, y):
+        raise NotImplementedError('unsupported operation for OrderedTrainSet')
+
+    def __getitem__(self, index):
+        if isinstance(index, ordered):
+            index = index.index
+
+            if isinstance(index, int):
+                return self._ordered_train_ids[index]
+            else:
+                if isinstance(index, slice):
+                    if isinstance(index.start, float):
+                        index = slice(int(index.start*len(self)), index.stop, index.step)
+
+                    if isinstance(index.stop, float):
+                        index = slice(index.start, int(index.stop*len(self)), index.step)
+
+                return OrderedTrainSet(self._ordered_train_ids[index])
+        else:
+            return super().__getitem__(index)
+
+    @property
+    def train_ids(self):
+        if self._sorted_train_ids is None:
+            self._sorted_train_ids = sorted(self._ordered_train_ids)
+
+        return self._sorted_train_ids
+
+    def same_order_as(self, y: 'OrderedTrainSet') -> bool:
+        return self._ordered_train_ids == y._ordered_train_ids
+
+    def select_records(self, *args, **kwargs):
+        # TODO: Custom implementation not using sets.
+
+        raise NotImplementedError('unsupported operation for OrderedTrainSet')
+
+    def unorder(self) -> 'TrainSet':
+        return TrainSet(self._ordered_train_ids)
+
+    # A iterate_trains_ordered version might be possible, but really expensive!
+    # We'd either have to reorder the data after querying it OR jump around
+    # during reading by querying single train ID sets. This is probably enough
+    # of a corner case that we do not provide an implementation for it. Instead,
+    # we should provide a way to retrieve the ordered list of train IDs to order
+    # a dataset by itself or provide an ordered version of load_trains()
 
 
 class TrainRange(TrainSet):
