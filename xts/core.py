@@ -651,10 +651,24 @@ class HdfData(IndexedData):
 
     def walk_file(self, path, positions):
         with h5py.File(path, 'r') as h5f:
-            data = numpy.array(h5f[self.hdf_path])
+            h5d = h5f[self.hdf_path]
+
+            # Always load a full chunk at a time and try to reuse it
+            # as long as possible
+            chunk_len = h5d.chunks[0]
+            cur_chunk_idx = -1
+            cur_chunk_data = None
 
             for pos in positions:
-                yield data[pos]
+                chunk_idx = pos // chunk_len
+
+                if chunk_idx != cur_chunk_idx:
+                    cur_chunk_idx = chunk_idx
+
+                    chunk_start = chunk_idx * chunk_len
+                    cur_chunk_data = numpy.array(h5d[chunk_start:chunk_start+chunk_len])
+
+                yield cur_chunk_data[pos % chunk_len]
 
     def dtype(self) -> numpy.dtype:
         pass
