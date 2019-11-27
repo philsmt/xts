@@ -101,13 +101,83 @@ class TrainSet(object):
     def get_index_map(self) -> Dict[int, int]:
         return dict(zip(self.train_ids, range(len(self.train_ids))))
 
-    def map_trains(self, kernel: TrainKernel, *ds: 'DataSource',
-                   **kwargs) -> None:
+    def peek_format(self, *ds: 'DataSource', **kwargs) -> Tuple[List[Tuple], List[numpy.dtype]]:
+        if len(self) == 0:
+            raise ValueError('empty TrainSet')
 
+        shapes = dtypes = None
+
+        def properties_kernel(wid, tid, *data):
+            nonlocal shapes, dtypes
+            shapes = [d.shape for d in data]
+            dtypes = [d.dtype for d in data]
+
+        self[:1].map_trains(properties_kernel, *ds,
+                            **dict(kwargs, pl_worker=1))
+
+        return shapes, dtypes
+
+    def peek_shape(self, *ds: 'DataSource', **kwargs) -> List[Tuple]:
+        return self.peek_format(*ds, **kwargs)[0]
+
+    def peek_dtype(self, *ds: 'DataSource', **kwargs) -> List[numpy.dtype]:
+        return self.peek_format(*ds, **kwargs)[1]
+
+    def alloc_for_trains(self, *ds: 'DataSource', shape: Tuple[int] = tuple(),
+                         dtype: numpy.dtype = numpy.float64, multiply_rows: int = 1,
+                         **kwargs) -> numpy.ndarray:
+        if len(ds) == 1:
+            shapes, dtypes = self.peek_format(ds[0])
+            shape = shapes[0]
+            dtype = dtypes[0]
+
+        elif len(ds) > 1:
+            raise ValueError('implicit allocation only supported for exactly one data source')
+
+        return alloc_array((len(self)*multiply_rows, *shape), dtype, **kwargs)
+
+    def alloc_for_pulses(*args, multiply_rows: int = 1, **kwargs) -> numpy.ndarray:
+        pulses_per_train = 1  # requires configuration!
+        return self.alloc_for_trains(*args, multiply_rows=multiply_rows * pulses_per_train,
+                                     **kwargs)
+
+    def alloc_for_reduce(self, ds, shape=None, dtype=None, **kwargs):
+        ds_format = self.peek_format(ds, **kwargs)
+        ds_shape, ds_dtype = ds_format[0][0], ds_format[1][0]
+
+        if shape is None:
+            shape = ds_shape
+
+        if dtype is None:
+            dtype = ds_dtype
+
+        return alloc_array(shape, dtype, per_worker=True, **kwargs)
+
+    def select_records(self, *ds: 'DataSource', **kwargs) -> 'TrainSet':
+        tid_set = set(self.train_ids)
+
+        for _ds in ds:
+            _ds = resolve_data_source(_ds)
+
+            _ds.index_trains(self)
+            tid_set.intersection_update(_ds.walk_records(self))
+
+        return TrainSet(tid_set)
+
+    def map_trains(self, kernel: TrainKernel, *ds: 'DataSource', **kwargs) -> None:
         for val in ds:
             resolve_data_source(val).index_trains(self)
 
         map_kernel_by_train(kernel, self, *ds, **kwargs)
+
+    def iterate_trains(self, *ds: 'DataSource', **kwargs) -> Iterator[int, ...]:
+        for _ds in ds:
+            resolve_data_source(_ds).index_trains(self)
+
+        ds_gens = get_data_generators(self, ds, kwargs)
+
+        for train_id, *ds_data in zip(self, *ds_gens):
+            yield (train_id, *ds_data)
 
     def select_trains(self, kernel: TrainKernel, *ds: 'DataSource',
                       **kwargs) -> 'TrainSet':
@@ -122,25 +192,8 @@ class TrainSet(object):
 
         return TrainSet(list(numpy.array(self.train_ids)[result_mask]))
 
-    def select_records(self, *args) -> 'TrainSet':
-        tid_set = set(self.train_ids)
-
-        for val in args:
-            tid_set = tid_set.intersection(
-                resolve_data_source(val).walk_records(self)
-            )
-
-        return TrainSet(tid_set)
-
-    def map_data(self, *ds: 'DataSource', **kwargs) -> Tuple[numpy.ndarray]:
-        shapes = dtypes = None
-
-        def shape_kernel(wid, tid, *data):
-            nonlocal shapes, dtypes
-            shapes = [d.shape for d in data]
-            dtypes = [d.dtype for d in data]
-
-        self[:1].map_trains(shape_kernel, *ds, **kwargs)
+    def load_trains(self, *ds: 'DataSource', **kwargs) -> Tuple[numpy.ndarray]:
+        shapes, dtypes = self.peek_format(*ds)
 
         tid_map = self.get_index_map()
         arrays = [alloc_array((len(self), *shapes[i]), dtypes[i], per_worker=False, **kwargs)
@@ -155,7 +208,22 @@ class TrainSet(object):
 
         self.map_trains(fill_kernel, *ds, **kwargs)
 
-        return tuple(arrays)
+        return arrays
+
+    def average_trains(self, *ds: 'DataSource', **kwargs) -> Tuple[numpy.ndarray]:
+        shapes, _ = self.peek_format(*ds)
+
+        arrays = [alloc_array(shapes[i], numpy.float64, per_worker=True, **kwargs)
+                  for i in range(len(ds))]
+
+        def average_kernel(wid, tid, *data):
+            for i, d in enumerate(data):
+                if d is not None:
+                    arrays[i][wid] += d.astype(numpy.float64)
+
+        self.map_trains(average_kernel, *ds, **kwargs)
+
+        return [x.sum(axis=0) / len(self) for x in arrays]
 
 
 class TrainRange(TrainSet):
