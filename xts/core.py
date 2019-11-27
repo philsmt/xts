@@ -52,6 +52,9 @@ class TrainSet(object):
             return f'TrainSet({len(self.train_ids)} in ' \
                    f'[{self.train_ids[0]}, {self.train_ids[-1]}])'
 
+    def __repr__(self):
+        return f'TrainSet({self.train_ids})'
+
     def __iter__(self):
         return iter(self.train_ids)
 
