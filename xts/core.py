@@ -111,7 +111,7 @@ class TrainSet(object):
 
     def select_trains(self, kernel: TrainKernel, *ds: 'DataSource',
                       **kwargs) -> 'TrainSet':
-        result_mask = alloc_array((len(self.train_ids),), dtype=bool,
+        result_mask = alloc_array(len(self.train_ids), dtype=bool,
                                   **kwargs)
         tid_map = self.get_index_map()
 
@@ -963,7 +963,7 @@ def get_pl_env(kwargs: Dict[str, Any], pl_worker: Optional[str] = None,
     return get_pl_worker(kwargs, pl_worker), get_pl_method(kwargs, pl_method)
 
 
-def alloc_array(shape: Tuple[int], dtype: numpy.dtype,
+def alloc_array(shape: Union[int, Tuple[int]], dtype: numpy.dtype,
                 per_worker: bool = False, **kwargs) -> numpy.ndarray:
     pl_method = get_pl_method(kwargs)
 
@@ -972,9 +972,12 @@ def alloc_array(shape: Tuple[int], dtype: numpy.dtype,
         shape = (pl_worker,) + shape
 
     if pl_method == 'processes':
-        n_elements = 1
-        for _s in shape:
-            n_elements *= _s
+        if isinstance(shape, int):
+            n_elements = shape
+        else:
+            n_elements = 1
+            for _s in shape:
+                n_elements *= _s
 
         n_bytes = n_elements * numpy.dtype(dtype).itemsize
         n_pages = n_bytes // mmap.PAGESIZE + 1
