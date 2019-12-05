@@ -4,6 +4,16 @@ from typing import Callable
 import functools
 import time
 
+import numpy
+
+
+def find_nearest_index(array, value):
+    return (numpy.abs(array - value)).argmin()
+
+
+def find_nearest_value(array, value):
+    return array[find_nearest_index(array, value)]
+
 
 class timing(object):
     def __init__(self, name: str, verbose: bool = True) -> None:
