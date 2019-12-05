@@ -1,6 +1,6 @@
 
 import numpy as np
-from scipy.ndimage.interpolation import shift
+import scipy.ndimage.interpolation
 
 try:
     from ._signal_native import stack, separate, cfd_full, cfd_fast, cfd_fast_neg, cfd_fast_pos
@@ -76,7 +76,8 @@ def cfd(signal, threshold=150, fraction=1.0, delay=25, width=0, zero=0.0):
         cfd_signal[delay:] -= fraction * signal[:-delay]
         cfd_signal[:delay] -= fraction * signal[1]
     else:
-        cfd_signal = signal - shift(signal * fraction, delay, mode="nearest")
+        cfd_signal = signal - scipy.ndimage.interpolation.shift(signal * fraction,
+                                                                delay, mode="nearest")
 
     # Edge detection
     try:
