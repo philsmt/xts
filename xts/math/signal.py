@@ -1,6 +1,6 @@
 
 import numpy as np
-from scipy.ndimage.interpolate import shift
+from scipy.ndimage.interpolation import shift
 
 try:
     from ._signal_native import stack, separate, cfd_full, cfd_fast, cfd_fast_neg, cfd_fast_pos
