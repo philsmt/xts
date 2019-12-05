@@ -16,6 +16,14 @@ else:
 
     extra_kwargs['ext_modules'] = cythonize([
         Extension(
+            'xts.math._vmi_native', ['xts/math/_vmi_native.pyx'],
+            include_dirs=[numpy.get_include()],
+            # Do not use -ffast-math for this one, needs further checking!
+            extra_compile_args=['-O2', '-march=native', '-frename-registers',
+                                '-ftree-vectorize', '-fopenmp'],
+            extra_link_args=['-fopenmp']
+        ),
+        Extension(
             'xts.math._signal_native', ['xts/math/_signal_native.pyx'],
             include_dirs=[numpy.get_include()],
             extra_compile_args=['-O2', '-march=native', '-frename-registers',
