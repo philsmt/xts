@@ -1,3 +1,4 @@
+
 import os
 import subprocess
 
@@ -53,11 +54,11 @@ setup(
     version = version_str,
     author = 'Philipp Schmidt',
     author_email = 'philipp.schmidt@xfel.eu',
-    description = ('An extendable toolkit for data analysis of single-shot data, e.g. at FEL experiments'),
-    license = 'GPL',
+    description = ('An extendable toolkit for data analysis of shot data, e.g. at FEL experiments'),
+    license = 'License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)',
     packages = ['xts', 'xts.math'],
     long_description = read('README.md'),
-    long_description_content_type='text/markdown',
+    long_description_content_type = 'text/markdown',
     python_requires = '>=3.6',
     install_requires = ['numpy', 'scipy'],
     classifiers = [
