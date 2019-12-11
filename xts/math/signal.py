@@ -9,7 +9,8 @@ import scipy.ndimage.interpolation
 
 try:
     from ._signal_native import (  # noqa: F401
-        stack, separate, cfd_full, cfd_fast, cfd_fast_neg, cfd_fast_pos
+        stack, separate, cfd_full, cfd_fast, cfd_fast_neg, cfd_fast_pos,
+        _is_unique_peak_ntv
     )
 except ImportError:
     pass
@@ -164,8 +165,8 @@ def cfd(signal, threshold=150, fraction=1.0, delay=25, width=0, zero=0.0):
     return edge_indices, edge_heights, cfd_signal
 
 
-def _is_unique_peak(peak_indices, peak_xs, peak_ys, n_peaks, cur_x, cur_y,
-                    search_size):
+def _is_unique_peak_py(peak_indices, peak_xs, peak_ys, n_peaks, cur_x, cur_y,
+                       search_size):
     for i, peak_idx in zip(range(n_peaks), peak_indices):
         if abs(cur_x - peak_xs[peak_idx]) <= search_size \
                 and abs(cur_y - peak_ys[peak_idx]) <= search_size:
@@ -174,8 +175,33 @@ def _is_unique_peak(peak_indices, peak_xs, peak_ys, n_peaks, cur_x, cur_y,
     return True
 
 
-def _sort_peaks(data, peak_xs, peak_ys, all_indices, search_size,
-                peak_indices, peak_coms_x, peak_coms_y):
+def find_2d_hits(data, threshold, search_size):
+    # Get all points above the threshold
+    peak_ys, peak_xs = np.where(data > threshold)
+
+    # Peak indices sorted from the largest number down
+    peak_values = data[peak_ys, peak_xs]
+    all_indices = sorted(range(len(peak_xs)), key=lambda x: peak_values[x],
+                         reverse=True)
+
+    try:
+        is_unique_peak = _is_unique_peak_ntv
+    except NameError:
+        is_unique_peak = _is_unique_peak_py
+    else:
+        # Ensure they are contiguous for C
+        data = np.ascontiguousarray(data)
+        all_indices = np.ascontiguousarray(all_indices)
+        peak_xs = np.ascontiguousarray(peak_xs)
+        peak_ys = np.ascontiguousarray(peak_ys)
+
+    # Holds the indices of all unique peaks
+    peak_indices = np.empty_like(all_indices)
+
+    # Holds the proper center of mass of all unique peaks
+    peak_coms_x = np.empty((peak_xs.shape[0],), dtype=np.float64)
+    peak_coms_y = np.empty((peak_ys.shape[0],), dtype=np.float64)
+
     n_peaks = 0
 
     xy_shape = (6, 6)
@@ -185,8 +211,8 @@ def _sort_peaks(data, peak_xs, peak_ys, all_indices, search_size,
         cur_x = peak_xs[cur_idx]
         cur_y = peak_ys[cur_idx]
 
-        if is_unique_peak_py(peak_indices, peak_xs, peak_ys, n_peaks, cur_x,
-                             cur_y, search_size):
+        if is_unique_peak(peak_indices, peak_xs, peak_ys, n_peaks, cur_x,
+                          cur_y, search_size):
             peak_indices[n_peaks] = cur_idx
 
             peak_region = data[cur_y-search_size:cur_y+search_size,
@@ -210,41 +236,6 @@ def _sort_peaks(data, peak_xs, peak_ys, all_indices, search_size,
                     + (peak_region.sum(1) * y_vals).sum() / area
 
             n_peaks += 1
-
-    return n_peaks
-
-
-def find_2d_hits(data, threshold, search_size, sort_peaks=None):
-    # Get all points above the threshold
-    peak_ys, peak_xs = np.where(data > threshold)
-
-    # Peak indices sorted from the largest number down
-    peak_values = data[peak_ys, peak_xs]
-    all_indices = sorted(range(len(peak_xs)), key=lambda x: peak_values[x],
-                         reverse=True)
-
-    if sort_peaks is None:
-        try:
-            sort_peaks = sort_peaks_ntv
-        except NameError:
-            sort_peaks = _sort_peaks
-
-    if sort_peaks is sort_peaks_ntv:
-        # Ensure they are contiguous for C
-        data = np.ascontiguousarray(data)
-        all_indices = np.ascontiguousarray(all_indices)
-        peak_xs = np.ascontiguousarray(peak_xs)
-        peak_ys = np.ascontiguousarray(peak_ys)
-
-    # Holds the indices of all unique peaks
-    peak_indices = np.empty_like(all_indices)
-
-    # Holds the proper center of mass of all unique peaks
-    peak_coms_x = np.empty((peak_xs.shape[0],), dtype=np.float64)
-    peak_coms_y = np.empty((peak_ys.shape[0],), dtype=np.float64)
-
-    n_peaks = sort_peaks(data, peak_xs, peak_ys, all_indices, search_size,
-                         peak_indices, peak_coms_x, peak_coms_y)
 
     if n_peaks == 0:
         return None

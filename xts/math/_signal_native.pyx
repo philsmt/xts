@@ -22,6 +22,8 @@ ctypedef fused y_t:
     float
     double
 
+ctypedef long long int64
+
 
 def stack(numpy.ndarray[y_t, ndim=1, mode="c"] inp,
           numpy.ndarray[y_t, ndim=1, mode="c"] outp,
@@ -44,7 +46,8 @@ def stack(numpy.ndarray[y_t, ndim=1, mode="c"] inp,
             inp_idx1 = <int>floor(inp_pos)
             inp_idx2 = <int>ceil(inp_pos)
 
-            datum += <y_t>(inp[inp_idx1] + (inp[inp_idx2] - inp[inp_idx1]) * (inp_pos - <double>inp_idx1))
+            datum += <y_t>(inp[inp_idx1] + (inp[inp_idx2] - inp[inp_idx1])
+                           * (inp_pos - <double>inp_idx1))
 
         outp[i] = datum
 
@@ -67,7 +70,9 @@ def separate(numpy.ndarray[y_t, ndim=1, mode="c"] inp,
             inp_idx1 = <int>floor(inp_pos)
             inp_idx2 = <int>ceil(inp_pos)
 
-            outp[j, i] = <y_t>(inp[inp_idx1] + (inp[inp_idx2] - inp[inp_idx1]) * (inp_pos - <double>inp_idx1))
+            outp[j, i] = <y_t>(inp[inp_idx1]
+                               + (inp[inp_idx2] - inp[inp_idx1])
+                               * (inp_pos - <double>inp_idx1))
 
 
 def cfd_full(numpy.ndarray[y_t, ndim=1, mode='c'] signal,
@@ -207,3 +212,19 @@ def cfd_fast_neg(numpy.ndarray[y_t, ndim=1, mode='c'] signal,
             edge_idx += 1
 
     return edge_idx
+
+
+def _is_unique_peak_ntv(numpy.ndarray[int64, ndim=1, mode="c"] peak_indices,
+                        numpy.ndarray[int64, ndim=1, mode="c"] peak_xs,
+                        numpy.ndarray[int64, ndim=1, mode="c"] peak_ys,
+                        int n_peaks, int cur_x, int cur_y, int search_slice):
+    cdef int64 peak_idx
+
+    for i in range(n_peaks):
+        peak_idx = peak_indices[i]
+
+        if abs(cur_x - peak_xs[peak_idx]) <= search_slice \
+                and abs(cur_y - peak_ys[peak_idx]) <= search_slice:
+            return False
+
+    return True
