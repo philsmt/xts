@@ -8,7 +8,7 @@ from os import listdir
 from os.path import dirname
 
 import karabo_data
-from xts import TrainSet, DataRoot, DataSource
+from xts.core import TrainSet, DataRoot, DataSource
 from typing import Iterable, Generator, Optional
 
 

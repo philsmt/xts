@@ -9,7 +9,7 @@ import os.path
 import numpy as np
 import h5py
 
-from xts import HdfData, IndexedRoot, DataSource, DataRoot
+from xts.core import HdfData, IndexedRoot, DataSource, DataRoot
 
 
 def gen_bunch_ids(time_data):

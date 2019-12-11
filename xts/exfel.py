@@ -12,7 +12,7 @@ import re
 
 import numpy
 
-from xts import HdfData, IndexedRoot
+from xts.core import HdfData, IndexedRoot
 
 
 class KaraboData(HdfData):

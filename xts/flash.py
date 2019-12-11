@@ -12,7 +12,7 @@ import re
 
 import numpy
 
-from xts import PackedArrayData, HdfData, PackedRoot
+from xts.core import PackedArrayData, HdfData, PackedRoot
 
 
 class FlashHdfData(PackedArrayData, HdfData):

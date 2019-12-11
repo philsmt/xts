@@ -11,7 +11,7 @@ import struct
 
 import numpy
 
-from xts import IndexedData, IndexedRoot
+from xts.core import IndexedData, IndexedRoot
 
 
 class PimmsData(IndexedData):
