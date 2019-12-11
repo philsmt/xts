@@ -22,10 +22,10 @@ def cart2d_to_pol2d(self, M, Q1, Q2):
             u = col - col_lo
 
             try:
-                Q2[idx_r, idx_α] = (1 - t) * (1 - u) * M[row_lo, col_lo] + \
-                                      t    * (1 - u) * M[row_up, col_lo] + \
-                                   (1 - t) *    u    * M[row_lo, col_up] + \
-                                      t    *    u    * M[row_up, col_up]
+                Q2[idx_r, idx_α] = M[row_lo, col_lo] * (1 - t) * (1 - u) + \
+                                   M[row_up, col_lo] * t * (1 - u) + \
+                                   M[row_lo, col_up] * (1 - t) * u + \
+                                   M[row_up, col_up] * t * u
             except IndexError:
                 Q2[idx_r, idx_α] = 0
 
@@ -57,14 +57,14 @@ def pol3d_to_cart2d(self, P1, P2, M):
 
             t = idx_r - r_lo
             u = idx_α - α_lo
-            
+
             # vectorized bounds check missing!
 
             M[row, col] += 2 * (
-                (1 - t) * (1 - u) * P1[r_lo] * P2[r_lo, α_lo] + \
-                   t    * (1 - u) * P1[r_up] * P2[r_up, α_lo] + \
-                (1 - t) *    u    * P1[r_lo] * P2[r_lo, α_up] + \
-                   t    *    u    * P1[r_up] * P2[r_up, α_up]
+                P1[r_lo] * P2[r_lo, α_lo] * (1 - t) * (1 - u) +
+                P1[r_up] * P2[r_up, α_lo] * t * (1 - u) +
+                P1[r_lo] * P2[r_lo, α_up] * (1 - t) * u +
+                P1[r_up] * P2[r_up, α_up] * t * u
             )
 
 
@@ -92,10 +92,10 @@ def pol3d_to_section2d(self, P1, P2, M=None):
 
             try:
                 M[row, col] += 2 * (
-                    (1 - t) * (1 - u) * P1[r_lo] * P2[r_lo, α_lo] + \
-                       t    * (1 - u) * P1[r_up] * P2[r_up, α_lo] + \
-                    (1 - t) *    u    * P1[r_lo] * P2[r_lo, α_up] + \
-                       t    *    u    * P1[r_up] * P2[r_up, α_up]
+                    P1[r_lo] * P2[r_lo, α_lo] * (1 - t) * (1 - u) +
+                    P1[r_up] * P2[r_up, α_lo] * t * (1 - u) +
+                    P1[r_lo] * P2[r_lo, α_up] * (1 - t) * u +
+                    P1[r_up] * P2[r_up, α_up] * t * u
                 )
             except IndexError:
                 M[row, col] = 0

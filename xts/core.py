@@ -100,10 +100,12 @@ class TrainSet(object):
         else:
             if isinstance(index, slice):
                 if isinstance(index.start, float):
-                    index = slice(int(index.start*len(self)), index.stop, index.step)
+                    index = slice(int(index.start*len(self)), index.stop,
+                                  index.step)
 
                 if isinstance(index.stop, float):
-                    index = slice(index.start, int(index.stop*len(self)), index.step)
+                    index = slice(index.start, int(index.stop*len(self)),
+                                  index.step)
 
             return TrainSet(self.train_ids[index])
 
@@ -116,7 +118,8 @@ class TrainSet(object):
     def get_index_map(self) -> Dict[int, int]:
         return dict(zip(self.train_ids, range(len(self.train_ids))))
 
-    def peek_format(self, *ds: 'DataSource', **kwargs) -> Tuple[List[Tuple], List[numpy.dtype]]:
+    def peek_format(self, *ds: 'DataSource', **kwargs) \
+            -> Tuple[List[Tuple], List[numpy.dtype]]:
         if len(self) == 0:
             raise ValueError('empty TrainSet')
 
@@ -139,24 +142,27 @@ class TrainSet(object):
         return self.peek_format(*ds, **kwargs)[1]
 
     def alloc_for_trains(self, *ds: 'DataSource', shape: Tuple[int] = tuple(),
-                         dtype: numpy.dtype = numpy.float64, multiply_rows: int = 1,
-                         **kwargs) -> numpy.ndarray:
+                         dtype: numpy.dtype = numpy.float64,
+                         multiply_rows: int = 1, **kwargs) -> numpy.ndarray:
         if len(ds) == 1:
             shapes, dtypes = self.peek_format(ds[0])
             shape = shapes[0]
             dtype = dtypes[0]
 
         elif len(ds) > 1:
-            raise ValueError('implicit allocation only supported for exactly one data source')
+            raise ValueError('implicit allocation only supported for exactly '
+                             'one data source')
 
         return alloc_array((len(self)*multiply_rows, *shape), dtype, **kwargs)
 
-    def alloc_for_pulses(*args, multiply_rows: int = 1, **kwargs) -> numpy.ndarray:
+    def alloc_for_pulses(self, *args, multiply_rows: int = 1, **kwargs) \
+            -> numpy.ndarray:
         pulses_per_train = 1  # requires configuration!
-        return self.alloc_for_trains(*args, multiply_rows=multiply_rows * pulses_per_train,
-                                     **kwargs)
+        return self.alloc_for_trains(
+            *args, multiply_rows=multiply_rows * pulses_per_train, **kwargs)
 
-    def alloc_for_reduce(self, ds, shape=None, dtype=None, **kwargs):
+    def alloc_for_reduce(self, ds, shape=None, dtype=None, **kwargs) \
+            -> numpy.ndarray:
         ds_format = self.peek_format(ds, **kwargs)
         ds_shape, ds_dtype = ds_format[0][0], ds_format[1][0]
 
@@ -179,13 +185,15 @@ class TrainSet(object):
 
         return TrainSet(tid_set)
 
-    def map_trains(self, kernel: TrainKernel, *ds: 'DataSource', **kwargs) -> None:
+    def map_trains(self, kernel: TrainKernel, *ds: 'DataSource', **kwargs) \
+            -> None:
         for val in ds:
             resolve_data_source(val).index_trains(self)
 
         map_kernel_by_train(kernel, self, *ds, **kwargs)
 
-    def iterate_trains(self, *ds: 'DataSource', **kwargs) -> Iterator[Tuple[int, ...]]:
+    def iterate_trains(self, *ds: 'DataSource', **kwargs) \
+            -> Iterator[Tuple[int, ...]]:
         for _ds in ds:
             resolve_data_source(_ds).index_trains(self)
 
@@ -207,18 +215,22 @@ class TrainSet(object):
 
         return TrainSet(list(numpy.array(self.train_ids)[result_mask]))
 
-    def order_trains(self, kernel, *ds: 'DataSource', pos_dtype: numpy.dtype = numpy.float64,
-                     pos_shape: Tuple[int] = tuple(), **kwargs) -> 'OrderedTrainSet':
+    def order_trains(self, kernel, *ds: 'DataSource',
+                     pos_dtype: numpy.dtype = numpy.float64,
+                     pos_shape: Tuple[int] = tuple(), **kwargs) \
+            -> 'OrderedTrainSet':
         """
         kernel may be None for exactly one DataSource
         """
 
-        positions = alloc_array((len(self.train_ids), *pos_shape), dtype=pos_dtype, **kwargs)
+        positions = alloc_array((len(self.train_ids), *pos_shape),
+                                dtype=pos_dtype, **kwargs)
         tid_map = self.get_index_map()
 
         if kernel is None:
             if len(ds) != 1:
-                raise ValueError('implicit kernel definition only supported for exactly one data source')
+                raise ValueError('implicit kernel definition only supported '
+                                 'for exactly one data source')
 
             def kernel(wid, tid, value):
                 return value
@@ -236,7 +248,8 @@ class TrainSet(object):
         shapes, dtypes = self.peek_format(*ds)
 
         tid_map = self.get_index_map()
-        arrays = [alloc_array((len(self), *shapes[i]), dtypes[i], per_worker=False, **kwargs)
+        arrays = [alloc_array((len(self), *shapes[i]), dtypes[i],
+                              per_worker=False, **kwargs)
                   for i in range(len(ds))]
 
         def fill_kernel(wid, tid, *data):
@@ -250,10 +263,12 @@ class TrainSet(object):
 
         return arrays
 
-    def average_trains(self, *ds: 'DataSource', **kwargs) -> Tuple[numpy.ndarray]:
+    def average_trains(self, *ds: 'DataSource', **kwargs) \
+            -> Tuple[numpy.ndarray]:
         shapes, _ = self.peek_format(*ds)
 
-        arrays = [alloc_array(shapes[i], numpy.float64, per_worker=True, **kwargs)
+        arrays = [alloc_array(shapes[i], numpy.float64, per_worker=True,
+                              **kwargs)
                   for i in range(len(ds))]
 
         def average_kernel(wid, tid, *data):
@@ -268,12 +283,13 @@ class TrainSet(object):
 
 class OrderedTrainSet(TrainSet):
     # A special version of TrainSet that allows to store train IDs in
-    # a custom order. However, as this class still inherits from TrainSet,
-    # it is important to preserve the semantics of TrainSet of numerically
-    # sorted IDs! This is realized by keeping the "ordered" (i.e. custom
-    # order) and "sorted" (i.e. numerically) lists separately. Set
-    # operations are not supported for this class and a custom index
-    # expression is provided for indexing into the ordered train IDs.
+    # a custom order. However, as this class still inherits from
+    # TrainSet, it is important to preserve the semantics of TrainSet of
+    # numerically sorted IDs! This is realized by keeping the "ordered"
+    # (i.e. custom order) and "sorted" (i.e. numerically) lists
+    # separately. Set operations are not supported for this class and a
+    # custom index expression is provided for indexing into the ordered
+    # train IDs.
 
     def __init__(self, train_ids: Iterable[int]):
         self._ordered_train_ids = list(train_ids)
@@ -284,7 +300,8 @@ class OrderedTrainSet(TrainSet):
             return 'OrderedTrainSet(empty)'
         else:
             return f'OrderedTrainSet({len(self._ordered_train_ids)} in ' \
-                   f'[{min(self._ordered_train_ids)}, {max(self._ordered_train_ids)}])'
+                   f'[{min(self._ordered_train_ids)}, ' \
+                   f'{max(self._ordered_train_ids)}])'
 
     def __repr__(self):
         return f'TrainSet({self._ordered_train_ids})'
@@ -309,10 +326,12 @@ class OrderedTrainSet(TrainSet):
             else:
                 if isinstance(index, slice):
                     if isinstance(index.start, float):
-                        index = slice(int(index.start*len(self)), index.stop, index.step)
+                        index = slice(int(index.start*len(self)), index.stop,
+                                      index.step)
 
                     if isinstance(index.stop, float):
-                        index = slice(index.start, int(index.stop*len(self)), index.step)
+                        index = slice(index.start, int(index.stop*len(self)),
+                                      index.step)
 
                 return OrderedTrainSet(self._ordered_train_ids[index])
         else:
@@ -336,12 +355,13 @@ class OrderedTrainSet(TrainSet):
     def unorder(self) -> 'TrainSet':
         return TrainSet(self._ordered_train_ids)
 
-    # A iterate_trains_ordered version might be possible, but really expensive!
-    # We'd either have to reorder the data after querying it OR jump around
-    # during reading by querying single train ID sets. This is probably enough
-    # of a corner case that we do not provide an implementation for it. Instead,
-    # we should provide a way to retrieve the ordered list of train IDs to order
-    # a dataset by itself or provide an ordered version of load_trains()
+    # An iterate_trains_ordered version might be possible, but really
+    # expensive! We'd either have to reorder the data after querying it
+    # OR jump around during reading by querying single train ID sets.
+    # This is probably enough of a corner case that we do not provide an
+    # implementation for it. Instead, we should provide a way to
+    # retrieve the ordered list of train IDs to order a dataset by
+    # itself or provide an ordered version of load_trains()
 
 
 class TrainRange(TrainSet):
@@ -852,7 +872,8 @@ class HdfData(IndexedData):
                     cur_chunk_idx = chunk_idx
 
                     chunk_start = chunk_idx * chunk_len
-                    cur_chunk_data = numpy.array(h5d[chunk_start:chunk_start+chunk_len])
+                    cur_chunk_data = numpy.array(
+                        h5d[chunk_start:chunk_start+chunk_len])
 
                 yield cur_chunk_data[pos % chunk_len]
 
@@ -1108,7 +1129,8 @@ def parallelized(func: Callable):
     return parallelized_func
 
 
-def get_pl_worker(kwargs: Dict[str, Any], default: Optional[str] = None) -> int:
+def get_pl_worker(kwargs: Dict[str, Any], default: Optional[str] = None) \
+        -> int:
     try:
         pl_worker = int(kwargs['pl_worker'])
     except KeyError:
@@ -1126,7 +1148,8 @@ def get_pl_worker(kwargs: Dict[str, Any], default: Optional[str] = None) -> int:
     return pl_worker
 
 
-def get_pl_method(kwargs: Dict[str, Any], default: Optional[str] = None) -> str:
+def get_pl_method(kwargs: Dict[str, Any], default: Optional[str] = None) \
+        -> str:
     try:
         pl_method = kwargs['pl_method']
     except KeyError:
@@ -1240,7 +1263,8 @@ def resolve_data_source(val) -> DataSource:
     return ds
 
 
-def get_data_generators(target: TrainSet, data_sources, kwargs) -> List[Generator]:
+def get_data_generators(target: TrainSet, data_sources, kwargs) \
+        -> List[Generator]:
     gens = []
 
     for val in data_sources:
@@ -1257,7 +1281,8 @@ def get_data_generators(target: TrainSet, data_sources, kwargs) -> List[Generato
 
 
 def index_opts(strategy: str = 'aot',
-               path: Union[str, DataRoot, None] = _INDEX_DATABASE_PATH) -> None:
+               path: Union[str, DataRoot, None] = _INDEX_DATABASE_PATH) \
+        -> None:
     try:
         _initialized
     except NameError:
@@ -1314,8 +1339,10 @@ def build_schema_sql(tables, prefix) -> str:
             pass
         else:
             for index_name, index_columns in indices.items():
-                sql += f'CREATE INDEX IF NOT EXISTS {prefix}_{table_name}_{index_name} ' \
-                       f'ON {prefix}_{table_name} ({", ".join(index_columns)});\n'
+                sql += f'CREATE INDEX IF NOT EXISTS ' \
+                       f'{prefix}_{table_name}_{index_name} ' \
+                       f'ON {prefix}_{table_name} ' \
+                       f'({", ".join(index_columns)});\n'
 
         sql += '\n'
 

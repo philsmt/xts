@@ -8,7 +8,9 @@ import numpy as np
 import scipy.ndimage.interpolation
 
 try:
-    from ._signal_native import stack, separate, cfd_full, cfd_fast, cfd_fast_neg, cfd_fast_pos
+    from ._signal_native import (  # noqa: F401
+        stack, separate, cfd_full, cfd_fast, cfd_fast_neg, cfd_fast_pos
+    )
 except ImportError:
     pass
 
@@ -81,8 +83,8 @@ def cfd(signal, threshold=150, fraction=1.0, delay=25, width=0, zero=0.0):
         cfd_signal[delay:] -= fraction * signal[:-delay]
         cfd_signal[:delay] -= fraction * signal[1]
     else:
-        cfd_signal = signal - scipy.ndimage.interpolation.shift(signal * fraction,
-                                                                delay, mode="nearest")
+        cfd_signal = signal - scipy.ndimage.interpolation.shift(
+            signal * fraction, delay, mode="nearest")
 
     # Edge detection
     try:
@@ -99,8 +101,7 @@ def cfd(signal, threshold=150, fraction=1.0, delay=25, width=0, zero=0.0):
         edge_indices = (zero_crossings & above_threshold).nonzero()[0]
 
     except IndexError:
-        edge_indices = np.empty((0,), dtype=np.float32 if interpolate
-                                            else np.int32)
+        edge_indices = np.empty((0,), dtype=np.float64)
 
     if len(edge_indices) > 0:
         # Width suppression
@@ -127,13 +128,13 @@ def cfd(signal, threshold=150, fraction=1.0, delay=25, width=0, zero=0.0):
         if threshold > 0:
             for i in range(len(edge_indices)):
                 x = edge_indices[i]
-                new_indices[i] = x + cfd_signal[x]/(cfd_signal[x]
-                    - cfd_signal[x+1])
+                new_indices[i] = x + cfd_signal[x] \
+                    / (cfd_signal[x] - cfd_signal[x+1])
         else:
             for i in range(len(edge_indices)):
                 x = edge_indices[i]
-                new_indices[i] = x - cfd_signal[x]/(cfd_signal[x+1]
-                    - cfd_signal[x])
+                new_indices[i] = x - cfd_signal[x] \
+                    / (cfd_signal[x+1] - cfd_signal[x])
 
         edge_indices = new_indices
 
@@ -163,7 +164,8 @@ def cfd(signal, threshold=150, fraction=1.0, delay=25, width=0, zero=0.0):
     return edge_indices, edge_heights, cfd_signal
 
 
-def _is_unique_peak(peak_indices, peak_xs, peak_ys, n_peaks, cur_x, cur_y, search_size):
+def _is_unique_peak(peak_indices, peak_xs, peak_ys, n_peaks, cur_x, cur_y,
+                    search_size):
     for i, peak_idx in zip(range(n_peaks), peak_indices):
         if abs(cur_x - peak_xs[peak_idx]) <= search_size \
                 and abs(cur_y - peak_ys[peak_idx]) <= search_size:
@@ -172,7 +174,8 @@ def _is_unique_peak(peak_indices, peak_xs, peak_ys, n_peaks, cur_x, cur_y, searc
     return True
 
 
-def _sort_peaks(data, peak_xs, peak_ys, all_indices, search_size, peak_indices, peak_coms_x, peak_coms_y):
+def _sort_peaks(data, peak_xs, peak_ys, all_indices, search_size,
+                peak_indices, peak_coms_x, peak_coms_y):
     n_peaks = 0
 
     xy_shape = (6, 6)
@@ -182,7 +185,8 @@ def _sort_peaks(data, peak_xs, peak_ys, all_indices, search_size, peak_indices, 
         cur_x = peak_xs[cur_idx]
         cur_y = peak_ys[cur_idx]
 
-        if is_unique_peak_py(peak_indices, peak_xs, peak_ys, n_peaks, cur_x, cur_y, search_size):
+        if is_unique_peak_py(peak_indices, peak_xs, peak_ys, n_peaks, cur_x,
+                             cur_y, search_size):
             peak_indices[n_peaks] = cur_idx
 
             peak_region = data[cur_y-search_size:cur_y+search_size,
@@ -196,12 +200,14 @@ def _sort_peaks(data, peak_xs, peak_ys, all_indices, search_size, peak_indices, 
 
             area = peak_region.sum()
 
-            if area == 0:
-                peak_coms_x[n_peaks] = cur_x
-                peak_coms_y[n_peaks] = cur_y
-            else:
-                peak_coms_x[n_peaks] = (cur_x - search_size + (peak_region.sum(0) * x_vals).sum() / area)
-                peak_coms_y[n_peaks] = (cur_y - search_size + (peak_region.sum(1) * y_vals).sum() / area)
+            peak_coms_x[n_peaks] = cur_x
+            peak_coms_y[n_peaks] = cur_y
+
+            if area != 0:
+                peak_coms_x[n_peaks] -= search_size \
+                    + (peak_region.sum(0) * x_vals).sum() / area
+                peak_coms_y[n_peaks] -= search_size \
+                    + (peak_region.sum(1) * y_vals).sum() / area
 
             n_peaks += 1
 
@@ -214,7 +220,8 @@ def find_2d_hits(data, threshold, search_size, sort_peaks=None):
 
     # Peak indices sorted from the largest number down
     peak_values = data[peak_ys, peak_xs]
-    all_indices = sorted(range(len(peak_xs)), key=lambda x: peak_values[x], reverse=True)
+    all_indices = sorted(range(len(peak_xs)), key=lambda x: peak_values[x],
+                         reverse=True)
 
     if sort_peaks is None:
         try:
@@ -236,7 +243,8 @@ def find_2d_hits(data, threshold, search_size, sort_peaks=None):
     peak_coms_x = np.empty((peak_xs.shape[0],), dtype=np.float64)
     peak_coms_y = np.empty((peak_ys.shape[0],), dtype=np.float64)
 
-    n_peaks = sort_peaks(data, peak_xs, peak_ys, all_indices, search_size, peak_indices, peak_coms_x, peak_coms_y)
+    n_peaks = sort_peaks(data, peak_xs, peak_ys, all_indices, search_size,
+                         peak_indices, peak_coms_x, peak_coms_y)
 
     if n_peaks == 0:
         return None
@@ -245,7 +253,8 @@ def find_2d_hits(data, threshold, search_size, sort_peaks=None):
     peak_coms_x = peak_coms_x[:n_peaks]
     peak_coms_y = peak_coms_y[:n_peaks]
 
-    return peak_xs[peak_indices], peak_ys[peak_indices], peak_coms_x, peak_coms_y
+    return peak_xs[peak_indices], peak_ys[peak_indices], \
+        peak_coms_x, peak_coms_y
 
 
 def covariance(X, Y=None, r_corr=1.0, r_uncorr=1.0):
@@ -271,11 +280,10 @@ def covariance(X, Y=None, r_corr=1.0, r_uncorr=1.0):
     nx = X.shape[0]
     ny = Y.shape[0]
 
-    Xsum = (1/nx) * X.sum(axis=0).reshape(1, -1)
-    Ysum = (1/ny) * Y.sum(axis=0).reshape(1, -1)
+    Xsum = (1 / nx) * X.sum(axis=0).reshape(1, -1)
+    Ysum = (1 / ny) * Y.sum(axis=0).reshape(1, -1)
 
-    res_corr   = (r_corr/nx) * np.dot(X.T,    Y)
-    res_uncorr =  r_uncorr   * np.dot(Xsum.T, Ysum)
+    res_corr = (r_corr / nx) * np.dot(X.T, Y)
+    res_uncorr = r_uncorr * np.dot(Xsum.T, Ysum)
 
     return res_corr - res_uncorr
-

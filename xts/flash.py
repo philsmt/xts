@@ -143,7 +143,7 @@ class FlashProposal(FlashRoot):
         if path is None:
             path = os.path.realpath(os.getcwd())
 
-        m = re.match('/asap3/flash/gpfs/(\w{3,4})/(\d{4,4})/data/(\d{8,8})',
+        m = re.match(r'/asap3/flash/gpfs/(\w{3,4})/(\d{4,4})/data/(\d{8,8})',
                      path)
 
         if m is not None:

@@ -39,8 +39,7 @@ def gaussian(x, y0, A, μ, σ):
 
     """
 
-    return y0 + (A / (σ * np.sqrt(2*np.pi))) \
-        * np.exp( -(x - μ)**2 / (2 * σ**2) )
+    return y0 + (A / (σ * np.sqrt(2*np.pi))) * np.exp(-(x - μ)**2 / (2 * σ**2))
 
 
 def gaussian2d(x, y, z0, A, μ_x, μ_y, σ_x, σ_y):
@@ -58,8 +57,8 @@ def gaussian2d(x, y, z0, A, μ_x, μ_y, σ_x, σ_y):
     """
 
     return z0 + (A/(σ_x * σ_y * 2*np.pi)) \
-        * np.exp( - (x[None, :] - μ_x)**2 / (2 * σ_x**2)
-                  - (y[:, None] - μ_y)**2 / (2 * σ_y**2) )
+        * np.exp(- (x[None, :] - μ_x)**2 / (2 * σ_x**2)
+                 - (y[:, None] - μ_y)**2 / (2 * σ_y**2))
 
 
 def lorentzian(x, y0, A, x0, γ):
@@ -221,5 +220,3 @@ def curve_fit(f, x, y, p0=None, bounds=None, label=None, verbose=True, *args,
                                                     coeffs[i], errors[i]))
 
     return coeffs, errors, r_squared, cov
-
-

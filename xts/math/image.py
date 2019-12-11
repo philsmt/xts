@@ -112,7 +112,7 @@ def theta_mask(shape, center=None, min_angle=None, max_angle=None,
         center = (shape[0] // 2, shape[1] // 2)
 
     grid_y, grid_x = np.ogrid[:shape[0], :shape[1]]
-    theta_grid     = np.arctan2(grid_y - center[0], grid_x - center[1])
+    theta_grid = np.arctan2(grid_y - center[0], grid_x - center[1])
 
     if min_angle is not None or max_angle is not None:
         min_angle = min_angle if min_angle is not None else -np.pi
@@ -127,25 +127,25 @@ def theta_mask(shape, center=None, min_angle=None, max_angle=None,
             mask |= ~((-3*np.pi/4 <= theta_grid) * (theta_grid <= 3*np.pi/4))
 
         if right:
-            mask |=   (-np.pi/4   <= theta_grid) * (theta_grid <= np.pi/4)
+            mask |= (-np.pi/4 <= theta_grid) * (theta_grid <= np.pi/4)
 
         if top:
-            mask |=   (-3*np.pi/4 <= theta_grid) * (theta_grid <= -np.pi/4)
+            mask |= (-3*np.pi/4 <= theta_grid) * (theta_grid <= -np.pi/4)
 
         if bottom:
-            mask |=   (np.pi/4    <= theta_grid) * (theta_grid <= 3*np.pi/4)
+            mask |= (np.pi/4 <= theta_grid) * (theta_grid <= 3*np.pi/4)
 
         if topleft:
-            mask |=   (-np.pi     <= theta_grid) * (theta_grid <= -np.pi/2)
+            mask |= (-np.pi <= theta_grid) * (theta_grid <= -np.pi/2)
 
         if topright:
-            mask |=   (-np.pi/2   <= theta_grid) * (theta_grid <= 0)
+            mask |= (-np.pi/2 <= theta_grid) * (theta_grid <= 0)
 
         if bottomright:
-            mask |=   (0          <= theta_grid) * (theta_grid <= np.pi/2)
+            mask |= (0 <= theta_grid) * (theta_grid <= np.pi/2)
 
         if bottomleft:
-            mask |=   (np.pi/2    <= theta_grid) * (theta_grid <= np.pi)
+            mask |= (np.pi/2 <= theta_grid) * (theta_grid <= np.pi)
 
     return mask
 
