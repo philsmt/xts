@@ -5,7 +5,7 @@
 
 
 from xts.core import (  # noqa: F401
-    ShotId, ordered,
+    ShotId,
     TrainSet, OrderedTrainSet, TrainRange, TimeRange, Run,
     ArrayData, MappedData,
     alloc_array, index_opts, get_index_path, index_dbc, env
