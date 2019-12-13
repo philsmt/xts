@@ -42,16 +42,6 @@ else:
 DEFAULT_PL_WORKER = multiprocessing.cpu_count() // 3
 
 
-class _IndexConstructable(type):
-    def __getitem__(self, item):
-        return self(item)
-
-
-class ordered(metaclass=_IndexConstructable):
-    def __init__(self, index):
-        self.index = index
-
-
 class ShotId(int):
     pass
 
@@ -307,6 +297,8 @@ class OrderedTrainSet(TrainSet):
         self._ordered_train_ids = list(train_ids)
         self._sorted_train_ids = None
 
+        self.ordered = OrderedTrainSet._OrderedAccess(self._ordered_train_ids)
+
     def __str__(self):
         if len(self.train_ids) == 0:
             return 'OrderedTrainSet(empty)'
@@ -332,10 +324,11 @@ class OrderedTrainSet(TrainSet):
     def __or__(self, y):
         raise NotImplementedError('unsupported operation for OrderedTrainSet')
 
-    def __getitem__(self, index):
-        if isinstance(index, ordered):
-            index = index.index
+    class _OrderedAccess(object):  # Not a TrainSet!
+        def __init__(self, _ordered_train_ids):
+            self._ordered_train_ids = _ordered_train_ids
 
+        def __getitem__(self, index):
             if isinstance(index, int):
                 return self._ordered_train_ids[index]
             else:
@@ -349,8 +342,18 @@ class OrderedTrainSet(TrainSet):
                                       index.step)
 
                 return OrderedTrainSet(self._ordered_train_ids[index])
-        else:
-            return super().__getitem__(index)
+
+        def __len__(self):
+            return len(self._ordered_train_ids)
+
+        def __iter__(self):
+            return iter(self._ordered_train_ids)
+
+        def __eq__(self, y: 'OrderedTrainSet'):
+            if isinstance(y, OrderedTrainSet) or isinstance(y, _OrderedAccess):
+                return self._ordered_train_ids == y._ordered_train_ids
+
+            return False
 
     @property
     def train_ids(self):
