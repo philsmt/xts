@@ -76,6 +76,9 @@ class TrainSet(object):
     def __repr__(self):
         return f'TrainSet({self.train_ids})'
 
+    def _repr_pretty_(self, p, cycle):
+        p.text(str(self))
+
     def __iter__(self):
         return iter(self.train_ids)
 
@@ -313,7 +316,10 @@ class OrderedTrainSet(TrainSet):
                    f'{max(self._ordered_train_ids)}])'
 
     def __repr__(self):
-        return f'TrainSet({self._ordered_train_ids})'
+        return f'OrderedTrainSet({self._ordered_train_ids})'
+
+    def _repr_pretty_(self, p, cycle):
+        p.text(str(self))
 
     def __len__(self):
         """Return the number of trains in this TrainSet."""
