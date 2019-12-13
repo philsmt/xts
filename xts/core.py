@@ -1066,6 +1066,8 @@ class PackedRoot(IndexedRoot):
 class Environment(object):
     def __call__(self, path: str = None, **kwargs):
         if path is not None:
+            path = os.path.expanduser(path)
+
             if os.path.isdir(path):
                 path = os.path.join(path, '.xtsenv.py')
 
