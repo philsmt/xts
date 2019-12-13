@@ -58,6 +58,12 @@ class ShotId(int):
 
 class TrainSet(object):
     def __init__(self, train_ids: Iterable[int]):
+        if isinstance(train_ids, h5py.Dataset):
+            # Special optimization for h5py datasets, as direct
+            # conversion to lists is VERY slow, while going
+            # through a numpy array is much much quicker.
+            train_ids = numpy.array(train_ids)
+
         self.train_ids = sorted(train_ids)
 
     def __str__(self):
@@ -292,6 +298,9 @@ class OrderedTrainSet(TrainSet):
     # train IDs.
 
     def __init__(self, train_ids: Iterable[int]):
+        if isinstance(train_ids, h5py.Dataset):
+            train_ids = numpy.array(train_ids)
+
         self._ordered_train_ids = list(train_ids)
         self._sorted_train_ids = None
 
