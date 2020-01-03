@@ -350,7 +350,8 @@ class OrderedTrainSet(TrainSet):
             return iter(self._ordered_train_ids)
 
         def __eq__(self, y: 'OrderedTrainSet'):
-            if isinstance(y, OrderedTrainSet) or isinstance(y, _OrderedAccess):
+            if isinstance(y, OrderedTrainSet) \
+                    or isinstance(y, OrderedTrainSet._OrderedAccess):
                 return self._ordered_train_ids == y._ordered_train_ids
 
             return False
