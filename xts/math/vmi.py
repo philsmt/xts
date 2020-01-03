@@ -16,40 +16,39 @@ class DirectAbelInversion:
 
 
 class IterativeAbelInversion:
-    _backends = {}
+    _impl = {}
 
     @classmethod
-    def load_backend(cls, name=None):
-        if name is None:
-            # Do not use CUDA by default
-            for name in ['native', 'numpy']:
-                backend = cls.load_backend(name)
+    def load_impl(cls, name=None):
+        if name == 'numpy':
+            return IterativeAbelInversion
 
-                if backend is not None:
-                    return backend
+        elif name is None:
+            for name in ['opencl', 'native', 'numpy']:
+                impl = cls.load_impl(name)
 
-            raise ValueError('failed to load any backend')
+                if impl is not None:
+                    return impl
+
+            return IterativeAbelInversion
 
         try:
-            backend = cls._backends[name]
+            impl = cls._impl[name]
         except KeyError:
             try:
-                backend = import_module(f'{__package__}._vmi_{name}')
+                mod = import_module(f'{__package__}._vmi_{name}')
+                impl = getattr(mod, f'IterativeAbelInversion_{name}')
             except ImportError:
-                return None
+                return IterativeAbelInversion
+            except AttributeError:
+                return IterativeAbelInversion
             else:
-                backend.name = name
-                cls._backends[name] = backend
+                cls._impl[name] = impl
 
-        return backend
+        return impl
 
     def __init__(self, M_shape, row_center, col_center, r_max, r_len=1024,
                  α_len=1024, backend=None, **kwargs):
-        self.backend = self.load_backend(backend)
-
-        if self.backend is None:
-            raise ValueError(f'failed to load backend \'{backend}\'')
-
         if isinstance(M_shape, np.ndarray):
             M_shape = M_shape.shape
 
@@ -79,19 +78,41 @@ class IterativeAbelInversion:
     def polar_grid(self):
         return np.meshgrid(self.A, self.R)
 
-    def cart2d_to_pol2d(self, M, Q1=None, Q2=None):
-        if Q1 is not None:
-            assert Q1.shape == (len(self.R),), 'Incompatible shape of Q1'
-        else:
-            Q1 = np.zeros((len(self.R),), dtype=np.float64)
+    def cart2d_to_pol2d(self, M):
+        Q1 = np.zeros((len(self.R),), dtype=np.float64)
+        Q2 = np.zeros((len(self.R), len(self.A)), dtype=np.float64)
 
-        if Q2 is not None:
-            assert Q2.shape == (len(self.R), len(self.A)), \
-                   'Incompatible shape of Q2'
-        else:
-            Q2 = np.zeros((len(self.R), len(self.A)), dtype=np.float64)
+        for idx_r, r in enumerate(self.R):
+            for idx_α, α in enumerate(self.A):
+                row = -r * np.cos(α) + self.row_center
+                col = r * np.sin(α) + self.col_center
 
-        self.backend.cart2d_to_pol2d(self, M, Q1, Q2)
+                row_lo = int(row)
+                row_up = row_lo + 1
+                col_lo = int(col)
+                col_up = col_lo + 1
+
+                t = row - row_lo
+                u = col - col_lo
+
+                try:
+                    Q2[idx_r, idx_α] = (
+                        M[row_lo, col_lo] * (1 - t) * (1 - u) +
+                        M[row_up, col_lo] * t * (1 - u) +
+                        M[row_lo, col_up] * (1 - t) * u +
+                        M[row_up, col_up] * t * u
+                    )
+                except IndexError:
+                    Q2[idx_r, idx_α] = 0
+
+                Q1[idx_r] += (Q2[idx_r, idx_α] * self.Δα)
+
+            if Q1[idx_r] == 0:
+                Q2[idx_r, :] = 0
+            else:
+                Q2[idx_r, :] /= Q1[idx_r]
+
+        Q1 /= (Q2.sum(axis=1) * Q1 * self.R).sum() * self.Δr * self.Δα
 
         return Q1, Q2
 
@@ -127,27 +148,87 @@ class IterativeAbelInversion:
     def norm_cart2d(self, M):
         M /= M.sum()
 
-    def pol3d_to_cart2d(self, P1, P2, M=None):
-        if M is not None:
-            assert M.shape == (self.row_len, self.col_len), \
-                   'Incompatible shape of M'
-        else:
-            M = np.zeros((self.row_len, self.col_len), dtype=np.float64)
+    def pol3d_to_cart2d(self, P1, P2):
+        M = np.zeros((self.row_len, self.col_len), dtype=np.float64)
 
-        self.backend.pol3d_to_cart2d(self, P1, P2, M, dz=1.0)
+        r_max_idx = float(self.r_len)**2 * self.Δr**2
+
+        for row in range(self.row_len):
+            for col in range(self.col_len):
+                x = float(col - self.col_center)
+                y = float(self.row_center - row)
+
+                z_max_sq = r_max_idx - x**2 - y**2
+
+                if z_max_sq <= 1.0:
+                    continue
+
+                z = np.arange(0, np.sqrt(z_max_sq), 1.0)
+
+                idx_r = np.sqrt(x**2 + y**2 + z**2) / self.Δr - 1
+
+                if x >= 0:
+                    idx_α = np.arctan2(np.sqrt(x**2 + z**2), y) / self.Δα
+                else:
+                    idx_α = (2*np.pi - np.arctan2(np.sqrt(x**2 + z**2), y)) \
+                        / self.Δα
+
+                r_lo = idx_r.astype(int)
+                r_up = r_lo + 1
+                α_lo = idx_α.astype(int)
+                α_up = α_lo + 1
+
+                t = idx_r - r_lo
+                u = idx_α - α_lo
+
+                # vectorized bounds check missing!
+
+                M[row, col] += 2 * (
+                    P1[r_lo] * P2[r_lo, α_lo] * (1 - t) * (1 - u) +
+                    P1[r_up] * P2[r_up, α_lo] * t * (1 - u) +
+                    P1[r_lo] * P2[r_lo, α_up] * (1 - t) * u +
+                    P1[r_up] * P2[r_up, α_up] * t * u
+                ).sum()
 
         return M
 
-    def pol3d_to_section2d(self, P1, P2, M=None):
-        if M is not None:
-            assert M.shape == (self.row_len, self.col_len), \
-                   'Incompatible shape of M'
-        else:
-            M = np.zeros((self.row_len, self.col_len), dtype=np.float64)
+    def pol3d_to_slice2d(self, P1, P2):
+        S = np.zeros((self.row_len, self.col_len), dtype=np.float64)
 
-        self.backend.pol3d_to_section2d(self, P1, P2, M)
+        for row in range(self.row_len):
+            for col in range(self.col_len):
+                x = float(col - self.col_center)
+                y = float(self.row_center - row)
 
-        return M
+                r_idx = np.sqrt(x**2 + y**2) / self.Δr - 1
+
+                if x >= 0:
+                    α_idx = np.arctan2(x, y) / self.Δα
+                else:
+                    α_idx = (2*np.pi - np.arctan2(-x, y)) / self.Δα
+
+                r_lo = int(r_idx)
+                r_up = r_lo + 1
+                α_lo = int(α_idx)
+                α_up = α_lo + 1
+
+                t = r_idx - r_lo
+                u = α_idx - α_lo
+
+                if r_lo < 0 or r_up >= self.r_len or α_lo < 0 \
+                        or α_up >= self.α_len:
+                    continue
+
+                # vectorized bounds check missing!
+
+                S[row, col] += 2 * (
+                    P1[r_lo] * P2[r_lo, α_lo] * (1 - t) * (1 - u) +
+                    P1[r_up] * P2[r_up, α_lo] * t * (1 - u) +
+                    P1[r_lo] * P2[r_lo, α_up] * (1 - t) * u +
+                    P1[r_up] * P2[r_up, α_up] * t * u
+                )
+
+        return S
 
     def M_leastsq_err(M_exp, M_cal):
         # Actually a static method!
@@ -203,7 +284,7 @@ class IterativeAbelInversion:
 
         '''
 
-        if min_steps >= max_steps:
+        if max_steps is not None and min_steps >= max_steps:
             raise ValueError('min_steps must be smaller than max_steps')
 
         if max_steps is None and rel_err_tol is None:
@@ -306,7 +387,8 @@ class IterativeAbelInversion:
         self.Q1_cal, self.Q2_cal = self.cart2d_to_pol2d(self.M_cal)
 
 
-def invert_abel(data, row_center, col_center, r_max=None, method=None,
+def invert_abel(data, row_center, col_center, r_max=None,
+                method=None, impl=None,
                 radial_clip=False, return_full=False, **kwargs):
     if method is None:
         method = IterativeAbelInversion
@@ -327,7 +409,8 @@ def invert_abel(data, row_center, col_center, r_max=None, method=None,
         data = apply_radial_mask(data, center=(row_center, col_center),
                                  max_radius=r_max)
 
-    inv = method(data.shape, row_center, col_center, r_max, **kwargs)
+    cls = method.load_impl(impl)
+    inv = cls(data.shape, row_center, col_center, r_max, **kwargs)
     dist3d = inv(data, **kwargs)
 
     return (dist3d, inv) if return_full else dist3d
