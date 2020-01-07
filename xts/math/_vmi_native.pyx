@@ -37,7 +37,7 @@ cdef class data_format:
 
 
 class IterativeAbelInversion_native(IterativeAbelInversion):
-    def __init__(self, *args, native_num_threads=None, **kwargs):
+    def __init__(self, *args, native_num_threads=0, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.fmt = data_format(self, native_num_threads)
