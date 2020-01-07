@@ -22,8 +22,9 @@ cdef class data_format:
     cdef int a_len
     cdef double dr
     cdef double da
+    cdef int num_threads
 
-    def __cinit__(self, fmt):
+    def __cinit__(self, fmt, num_threads):
         self.row_center = fmt.row_center
         self.row_len = fmt.row_len
         self.col_center = fmt.col_center
@@ -32,13 +33,14 @@ cdef class data_format:
         self.a_len = getattr(fmt, 'α_len')
         self.dr = getattr(fmt, 'Δr')
         self.da = getattr(fmt, 'Δα')
+        self.num_threads = num_threads
 
 
 class IterativeAbelInversion_native(IterativeAbelInversion):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, native_num_threads=None, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.fmt = data_format(self)
+        self.fmt = data_format(self, native_num_threads)
 
     def cart2d_to_pol2d(self, M):
         Q1 = np.zeros((len(self.R),), dtype=np.float64)
@@ -48,10 +50,10 @@ class IterativeAbelInversion_native(IterativeAbelInversion):
 
         return Q1, Q2
 
-    def pol3d_to_cart2d(self, P1, P2, dz=1.0, num_threads=0):
+    def pol3d_to_cart2d(self, P1, P2, dz=1.0):
         M = np.zeros((self.row_len, self.col_len), dtype=np.float64)
 
-        pol3d_to_cart2d(self.fmt, P1, P2, M, dz, num_threads)
+        pol3d_to_cart2d(self.fmt, P1, P2, M, dz)
 
         return M
 
@@ -84,7 +86,8 @@ cdef cart2d_to_pol2d(data_format fmt,
             col_lo = int(col)
             col_up = col_lo + 1
 
-            if row_lo >= 0 and row_up < fmt.row_len and col_lo >= 0 and col_up < fmt.col_len:
+            if row_lo >= 0 and row_up < fmt.row_len and col_lo >= 0 \
+                    and col_up < fmt.col_len:
                 t = row - row_lo
                 u = col - col_lo
 
@@ -116,14 +119,14 @@ cdef pol3d_to_cart2d(data_format fmt,
                      numpy.ndarray[double, ndim=1, mode="c"] P1,
                      numpy.ndarray[double, ndim=2, mode="c"] P2,
                      numpy.ndarray[double, ndim=2, mode="c"] M,
-                     double dz, int num_threads):
+                     double dz):
 
     cdef double r_max_idx = float(fmt.r_len)**2 * fmt.dr**2
 
     cdef int row, col, r_lo, r_up, a_lo, a_up
     cdef double x, y, z, z_max, r_idx, a_idx, t, u
 
-    for row in prange(fmt.row_len, nogil=True, num_threads=num_threads):
+    for row in prange(fmt.row_len, nogil=True, num_threads=fmt.num_threads):
         y = float(fmt.row_center - row)
 
         for col in range(fmt.col_len):
