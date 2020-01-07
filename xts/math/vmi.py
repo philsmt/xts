@@ -79,39 +79,40 @@ class IterativeAbelInversion:
         return np.meshgrid(self.A, self.R)
 
     def cart2d_to_pol2d(self, M):
-        Q1 = np.zeros((len(self.R),), dtype=np.float64)
         Q2 = np.zeros((len(self.R), len(self.A)), dtype=np.float64)
 
-        for idx_r, r in enumerate(self.R):
-            for idx_α, α in enumerate(self.A):
-                row = -r * np.cos(α) + self.row_center
-                col = r * np.sin(α) + self.col_center
+        row = -self.R[:, None] * np.cos(self.A)[None, :] + self.row_center
+        col = self.R[:, None] * np.sin(self.A)[None, :] + self.col_center
 
-                row_lo = int(row)
-                row_up = row_lo + 1
-                col_lo = int(col)
-                col_up = col_lo + 1
+        row_lo = row.astype(int)
+        row_hi = row_lo + 1
+        col_lo = col.astype(int)
+        col_hi = col_lo + 1
 
-                t = row - row_lo
-                u = col - col_lo
+        in_bounds = (row_lo >= 0) & (row_hi < M.shape[0]) & (col_lo >= 0) & \
+            (col_hi < M.shape[1])
 
-                try:
-                    Q2[idx_r, idx_α] = (
-                        M[row_lo, col_lo] * (1 - t) * (1 - u) +
-                        M[row_up, col_lo] * t * (1 - u) +
-                        M[row_lo, col_up] * (1 - t) * u +
-                        M[row_up, col_up] * t * u
-                    )
-                except IndexError:
-                    Q2[idx_r, idx_α] = 0
+        row_lo = row_lo[in_bounds]
+        row_hi = row_hi[in_bounds]
+        col_lo = col_lo[in_bounds]
+        col_hi = col_hi[in_bounds]
 
-                Q1[idx_r] += (Q2[idx_r, idx_α] * self.Δα)
+        t = row[in_bounds] - row_lo
+        u = col[in_bounds] - col_lo
 
-            if Q1[idx_r] == 0:
-                Q2[idx_r, :] = 0
-            else:
-                Q2[idx_r, :] /= Q1[idx_r]
+        tc = 1 - t
+        uc = 1 - u
 
+        Q2[in_bounds] = (
+            M[row_lo, col_lo] * tc * uc +
+            M[row_hi, col_lo] * t * uc +
+            M[row_lo, col_hi] * tc * u +
+            M[row_hi, col_hi] * t * u
+        )
+
+        Q1 = Q2.sum(axis=1) * self.Δα
+
+        Q2 /= Q1[:, None]
         Q1 /= (Q2.sum(axis=1) * Q1 * self.R).sum() * self.Δr * self.Δα
 
         return Q1, Q2
@@ -139,96 +140,61 @@ class IterativeAbelInversion:
             * np.pi * self.Δα
         nonzero_norms = norm_values != 0.0
 
+        P1 /= (norm_values * P1 * self.R**2).sum() * self.Δr
         P2[~nonzero_norms, :] = 0
         P2[nonzero_norms, :] /= norm_values[nonzero_norms, None]
-
-        P1 /= ((P2 * sin_vals[None, :]).sum(axis=1) * P1 * self.R**2).sum() \
-            * np.pi * self.Δα * self.Δr
 
     def norm_cart2d(self, M):
         M /= M.sum()
 
-    def pol3d_to_cart2d(self, P1, P2):
+    def pol3d_to_cart2d(self, P1, P2, Z=None):
+        if Z is None:
+            Z = np.arange(0.0, self.R[-1], 1.0)
+
         M = np.zeros((self.row_len, self.col_len), dtype=np.float64)
 
-        r_max_idx = float(self.r_len)**2 * self.Δr**2
+        X, Y = np.meshgrid(
+            (np.arange(self.col_len) - self.col_center).astype(np.float64),
+            (self.row_center - np.arange(self.row_len)).astype(np.float64)
+        )
 
-        for row in range(self.row_len):
-            for col in range(self.col_len):
-                x = float(col - self.col_center)
-                y = float(self.row_center - row)
+        XY_squared = X**2 + Y**2
 
-                z_max_sq = r_max_idx - x**2 - y**2
+        for z in Z:
+            in_bounds = (self.r_max**2 - z**2 - 1) >= XY_squared
 
-                if z_max_sq <= 1.0:
-                    continue
+            Xi = X[in_bounds]
+            Yi = Y[in_bounds]
 
-                z = np.arange(0, np.sqrt(z_max_sq), 1.0)
+            r = np.sqrt(Xi**2 + Yi**2 + z**2)
+            r_idx = r / self.Δr - 1
 
-                idx_r = np.sqrt(x**2 + y**2 + z**2) / self.Δr - 1
+            α = np.arctan2(np.sqrt(Xi**2 + z**2), Yi)
+            α[Xi < 0] = 2*np.pi - α[Xi < 0]
+            α_idx = α / self.Δα
 
-                if x >= 0:
-                    idx_α = np.arctan2(np.sqrt(x**2 + z**2), y) / self.Δα
-                else:
-                    idx_α = (2*np.pi - np.arctan2(np.sqrt(x**2 + z**2), y)) \
-                        / self.Δα
+            r_lo = r_idx.astype(int)
+            r_up = r_lo + 1
+            α_lo = α_idx.astype(int)
+            α_up = α_lo + 1
 
-                r_lo = idx_r.astype(int)
-                r_up = r_lo + 1
-                α_lo = idx_α.astype(int)
-                α_up = α_lo + 1
+            t = r_idx - r_lo
+            u = α_idx - α_lo
 
-                t = idx_r - r_lo
-                u = idx_α - α_lo
+            tc = 1 - t
+            uc = 1 - u
 
-                # vectorized bounds check missing!
-
-                M[row, col] += 2 * (
-                    P1[r_lo] * P2[r_lo, α_lo] * (1 - t) * (1 - u) +
-                    P1[r_up] * P2[r_up, α_lo] * t * (1 - u) +
-                    P1[r_lo] * P2[r_lo, α_up] * (1 - t) * u +
-                    P1[r_up] * P2[r_up, α_up] * t * u
-                ).sum()
+            M[in_bounds] += 2 * (
+                P1[r_lo] * P2[r_lo, α_lo] * tc * uc +
+                P1[r_up] * P2[r_up, α_lo] * t * uc +
+                P1[r_lo] * P2[r_lo, α_up] * tc * u +
+                P1[r_up] * P2[r_up, α_up] * t * u
+            )
 
         return M
 
     def pol3d_to_slice2d(self, P1, P2):
-        S = np.zeros((self.row_len, self.col_len), dtype=np.float64)
-
-        for row in range(self.row_len):
-            for col in range(self.col_len):
-                x = float(col - self.col_center)
-                y = float(self.row_center - row)
-
-                r_idx = np.sqrt(x**2 + y**2) / self.Δr - 1
-
-                if x >= 0:
-                    α_idx = np.arctan2(x, y) / self.Δα
-                else:
-                    α_idx = (2*np.pi - np.arctan2(-x, y)) / self.Δα
-
-                r_lo = int(r_idx)
-                r_up = r_lo + 1
-                α_lo = int(α_idx)
-                α_up = α_lo + 1
-
-                t = r_idx - r_lo
-                u = α_idx - α_lo
-
-                if r_lo < 0 or r_up >= self.r_len or α_lo < 0 \
-                        or α_up >= self.α_len:
-                    continue
-
-                # vectorized bounds check missing!
-
-                S[row, col] += 2 * (
-                    P1[r_lo] * P2[r_lo, α_lo] * (1 - t) * (1 - u) +
-                    P1[r_up] * P2[r_up, α_lo] * t * (1 - u) +
-                    P1[r_lo] * P2[r_lo, α_up] * (1 - t) * u +
-                    P1[r_up] * P2[r_up, α_up] * t * u
-                )
-
-        return S
+        return self.pol3d_to_cart2d(P1, P2, Z=[0.0])
 
     def M_leastsq_err(M_exp, M_cal):
         # Actually a static method!
